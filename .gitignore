@@ -7,3 +7,16 @@ node_modules/
 # Logs
 *.log
 npm-debug.log*
+
+# Native build artifacts (re-created by Xcode / Android Studio / cap sync)
+ios/App/Pods/
+ios/App/build/
+ios/App/output/
+ios/DerivedData/
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/local.properties
+*.xcuserstate
+.gradle/

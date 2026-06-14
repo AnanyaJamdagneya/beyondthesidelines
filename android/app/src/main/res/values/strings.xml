@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Beyond the Sidelines</string>
+    <string name="title_activity_main">Beyond the Sidelines</string>
+    <string name="package_name">com.beyondthesidelines.app</string>
+    <string name="custom_url_scheme">com.beyondthesidelines.app</string>
+</resources>
