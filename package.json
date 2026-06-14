@@ -1,0 +1,23 @@
+{
+  "name": "beyond-the-sidelines",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Beyond the Sidelines — a recovery companion pairing physical therapy with journaling.",
+  "scripts": {
+    "icons": "capacitor-assets generate --iconBackgroundColor '#F2783A' --iconBackgroundColorDark '#F2783A' --splashBackgroundColor '#FFFBF6' --splashBackgroundColorDark '#2A231C'",
+    "sync": "cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/local-notifications": "^6.1.0",
+    "@capacitor/push-notifications": "^6.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.2"
+  }
+}

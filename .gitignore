@@ -1,0 +1,9 @@
+# Installed packages (re-created by `npm install`)
+node_modules/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*

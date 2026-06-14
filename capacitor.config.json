@@ -1,0 +1,12 @@
+{
+  "appId": "com.beyondthesidelines.app",
+  "appName": "Beyond the Sidelines",
+  "webDir": "www",
+  "backgroundColor": "#FFFBF6",
+  "ios": {
+    "contentInset": "always"
+  },
+  "android": {
+    "backgroundColor": "#FFFBF6"
+  }
+}
