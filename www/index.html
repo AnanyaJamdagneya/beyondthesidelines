@@ -621,6 +621,8 @@ function StoreProvider({ children }) {
       let data = null;
       try { data = await backend.loadData(user.uid); } catch (e) {}
       let acct = data || emptyAccount({ name: user.name, email: user.email });
+      // Make sure we keep the name from the provider (e.g. Google), backfilling it if an older account is missing one.
+      if (user.name && !acct.name) acct = { ...acct, name: user.name };
       // New therapist signup: convert the fresh account and create the connection doc.
       if (!data && window.__btsTherapistSignup) {
         const clinic = window.__btsTherapistSignup.clinic || ((user.name || acct.name) ? `${(user.name || acct.name)}` : 'Your clinic');
@@ -2931,6 +2933,12 @@ function PatientMessages() {
     </Card>
   );
 }
+// Inline editable text field: local state, saves on blur (no focus loss while typing).
+function EditText({ value, onSave, placeholder }) {
+  const [v, setV] = useState(value || '');
+  useEffect(() => { setV(value || ''); }, [value]);
+  return <Input value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={() => { if (v.trim() !== (value || '')) onSave(v.trim()); }} />;
+}
 function Profile() {
   const { account, deleteMyData, signOut, addGoal, toggleGoal, removeGoal, updateProfile, connectCenter, disconnectCenter, setReminder } = useStore();
   const [goalInput, setGoalInput] = useState('');
@@ -2949,9 +2957,24 @@ function Profile() {
 
         <Card>
           <div className="card-eyebrow" style={{ marginBottom:14 }}><Icon name="activity" size={14}/> Your recovery</div>
-          <div className="col" style={{ gap:14 }}>
-            <div className="row" style={{ justifyContent:'space-between', gap:12 }}><span className="muted">Injury</span><span style={{ fontWeight:600, color:'var(--text-strong)' }}>{p.injuryLabel || 'Not set'}</span></div>
-            {p.detail && <div className="row" style={{ justifyContent:'space-between', gap:12 }}><span className="muted">Details</span><span style={{ fontWeight:600, color:'var(--text-strong)', textAlign:'right' }}>{p.detail}</span></div>}
+          <div className="col" style={{ gap:16 }}>
+            <div>
+              <div className="field-label" style={{ fontSize:'var(--text-sm)', marginBottom:8 }}>What you’re recovering from</div>
+              <EditText value={p.injuryLabel} onSave={(v) => updateProfile({ injuryLabel: v })} placeholder="e.g. Left knee" />
+            </div>
+            <div>
+              <div className="field-label" style={{ fontSize:'var(--text-sm)', marginBottom:8 }}>Details <span className="muted" style={{ fontWeight:500 }}>(optional)</span></div>
+              <EditText value={p.detail} onSave={(v) => updateProfile({ detail: v })} placeholder="e.g. ACL reconstruction, 8 weeks post-op" />
+            </div>
+            <div>
+              <div className="field-label" style={{ fontSize:'var(--text-sm)', marginBottom:10 }}>Areas you’re working on <span className="muted" style={{ fontWeight:500 }}>(add more than one if you need)</span></div>
+              <div className="chip-grid">
+                {AREAS.map((a) => { const areas = (p.areas && p.areas.length) ? p.areas : (p.injuryKey ? [p.injuryKey] : []); const on = areas.includes(a.key); return (
+                  <button key={a.key} className="chip" data-on={on} style={{ fontSize:'var(--text-xs)', padding:'8px 14px' }}
+                    onClick={() => { const next = on ? areas.filter((x)=>x!==a.key) : [...areas, a.key]; updateProfile({ areas: next, injuryKey: next[0] || p.injuryKey }); }}>{on && <Icon name="check" size={13}/>}{a.label}</button>
+                ); })}
+              </div>
+            </div>
             <div className="row" style={{ justifyContent:'space-between', gap:12 }}><span className="muted">Started</span><span style={{ fontWeight:600, color:'var(--text-strong)' }}>{p.startISO ? longDate(p.startISO) : 'Not set'}</span></div>
           </div>
           <div style={{ marginTop:18 }}>
