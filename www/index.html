@@ -399,13 +399,13 @@ const NOTE_POOL = {
 const WIN_POOL = ["Did my exercises before I could talk myself out of it.","Stood without wincing.","Walked a little farther than yesterday.","Showed up when I didn't want to.","Slept better last night."];
 function buildSeedJournal(seedNum, mode) {
   const rand = mulberry32(seedNum);
-  // ~26 days back, a couple honest gaps, recent 8-day streak ending yesterday.
-  const skip = new Set([22, 19, 12]);
+  // ~40 days back (so the trend view zooms out to weekly), honest gaps, recent streak ending yesterday.
+  const skip = new Set([34, 27, 22, 12]);
   const entries = {};
-  const target = [2.2, 2.6, 3.1, 3.6, 4.0]; // rising weekly mean
-  for (let ago = 26; ago >= 1; ago--) {
+  const target = [2.0, 2.4, 2.8, 3.2, 3.6, 4.0]; // rising weekly mean over ~6 weeks
+  for (let ago = 40; ago >= 1; ago--) {
     if (skip.has(ago) && ago > 8) continue;
-    const wk = Math.min(4, Math.floor((26 - ago) / 6));
+    const wk = Math.min(target.length - 1, Math.floor((40 - ago) / 7));
     let m = Math.round(Math.max(1, Math.min(5, target[wk] + (rand() - 0.5) * 1.8)));
     const pain = Math.max(1, Math.min(5, 6 - m + (rand() < 0.3 ? 1 : 0)));
     const pool = NOTE_POOL[m];
@@ -2598,47 +2598,72 @@ function useIsPhone() {
   return phone;
 }
 function MoodTrend({ journal }) {
-  // weekly averages over the last ~5 weeks
   const [sel, setSel] = useState(null);
   const isPhone = useIsPhone();
   const dates = Object.keys(journal).sort();
   if (dates.length < 2) return null;
-  const buckets = {};
-  dates.forEach((d) => {
-    const ago = Math.round((today() - fromISO(d)) / 86400000);
-    const wk = Math.floor(ago / 7);
-    (buckets[wk] = buckets[wk] || []).push(journal[d].mood);
-  });
-  const recent = Object.keys(buckets).map(Number).sort((a,b)=>a-b).slice(0,5); // 5 most recent (0=this wk)
-  const weeks = recent.slice().reverse(); // oldest on the left, this week on the right
-  const pts = weeks.map((wk) => { const arr = buckets[wk]; return arr.reduce((a,b)=>a+b,0)/arr.length; });
-  // Bigger, taller chart on the phone (the website keeps its compact wide version).
+
+  // Start with daily detail; once there's about a month of history, zoom out to weekly averages
+  // so the longer-term trend stays readable.
+  const spanDays = Math.round((today() - fromISO(dates[0])) / 86400000);
+  const byWeek = spanDays >= 28;
+
+  let pts, labels, valLabel;
+  if (byWeek) {
+    const buckets = {};
+    dates.forEach((d) => { const wk = Math.floor(Math.round((today() - fromISO(d)) / 86400000) / 7); (buckets[wk] = buckets[wk] || []).push(journal[d].mood); });
+    const weeks = Object.keys(buckets).map(Number).sort((a,b)=>a-b).slice(0,6).reverse(); // up to 6 most recent, oldest-left
+    pts = weeks.map((wk) => { const a = buckets[wk]; return a.reduce((s,m)=>s+m,0)/a.length; });
+    labels = weeks.map((wk) => wk===0 ? 'This wk' : wk+'w ago');
+    valLabel = (i) => `${pts[i].toFixed(1)} avg · ${labels[i].toLowerCase()}`;
+  } else {
+    const days = dates.slice(-10); // most recent up to 10 logged days, oldest-left
+    pts = days.map((d) => journal[d].mood);
+    labels = days.map((d) => d === todayISO() ? 'Today' : DOW[fromISO(d).getDay()]);
+    valLabel = (i) => `${MOOD_LABELS[Math.round(pts[i]) - 1] || pts[i]} · ${labels[i] === 'Today' ? 'today' : shortDate(days[i])}`;
+  }
+
+  // Trend direction from the first shown point to the latest.
+  const delta = pts[pts.length - 1] - pts[0];
+  const trendKey = delta >= 0.5 ? 'up' : delta <= -0.5 ? 'down' : 'steady';
+  const TREND = {
+    up:     { icon: 'trending-up',   label: 'Trending up',    color: 'var(--secondary)',       bg: 'var(--secondary-soft)' },
+    steady: { icon: 'activity',      label: 'Holding steady', color: 'var(--text-muted)',      bg: 'var(--surface-sunken)' },
+    down:   { icon: 'trending-down', label: 'Trending down',  color: 'var(--brand-soft-text)', bg: 'var(--apricot-50)' },
+  }[trendKey];
+
   const W = isPhone ? 360 : 520, H = isPhone ? 240 : 150, padX = 30, padY = isPhone ? 30 : 24;
-  const ptR = isPhone ? 6 : 4.5, lineW = isPhone ? 4 : 3, labelFS = isPhone ? 15 : 11, selR = isPhone ? 8.5 : 6.5, tipFS = isPhone ? 15 : 12.5, tipH = isPhone ? 30 : 26;
+  const ptR = isPhone ? 6 : 4.5, lineW = isPhone ? 4 : 3, labelFS = isPhone ? 14 : 11, selR = isPhone ? 8.5 : 6.5, tipFS = isPhone ? 15 : 12.5, tipH = isPhone ? 30 : 26;
   const x=(i)=>padX+i*((W-padX*2)/Math.max(1,pts.length-1));
   const y=(v)=>padY+(1-(v-1)/4)*(H-padY*2);
   const P = pts.map((v,i)=>[x(i),y(v)]);
   const line = P.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
   const area = `${line} L ${x(pts.length-1).toFixed(1)} ${H-padY} L ${x(0).toFixed(1)} ${H-padY} Z`;
+  const showLabel = (i) => pts.length <= 8 || i === 0 || i === pts.length - 1 || i % 2 === 0; // thin out labels when crowded
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display:'block', overflow:'visible' }}>
-      <defs><linearGradient id="jtrend" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--brand)" stopOpacity="0.2"/><stop offset="100%" stopColor="var(--brand)" stopOpacity="0"/></linearGradient></defs>
-      {[1,2,3,4,5].map((v)=><line key={v} x1={padX} x2={W-padX} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4"/>)}
-      <path d={area} fill="url(#jtrend)"/>
-      <path d={line} fill="none" stroke="var(--brand)" strokeWidth={lineW} strokeLinecap="round" strokeLinejoin="round"/>
-      {P.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r={ptR} fill="var(--surface)" stroke="var(--brand)" strokeWidth="2.5"/>)}
-      {weeks.map((wk,i)=><text key={i} x={x(i)} y={H-(isPhone?8:4)} textAnchor="middle" fontSize={labelFS} fill="var(--text-subtle)">{wk===0?'This wk':wk+'w ago'}</text>)}
-      {/* tap or hover a point to read its value */}
-      {P.map((p,i)=><circle key={'t'+i} cx={p[0]} cy={p[1]} r="22" fill="transparent" style={{cursor:'pointer'}}
-        onClick={()=>setSel(sel===i?null:i)} onMouseEnter={()=>setSel(i)} onMouseLeave={()=>setSel(null)} />)}
-      {sel!=null && <circle cx={P[sel][0]} cy={P[sel][1]} r={selR} fill="var(--brand)" stroke="var(--surface)" strokeWidth="2.5" style={{pointerEvents:'none'}}/>}
-      {sel!=null && (()=>{
-        const p=P[sel], v=pts[sel];
-        const txt=`${v.toFixed(1)} avg · ${weeks[sel]===0?'this week':weeks[sel]+'w ago'}`;
-        const tw=txt.length*(tipFS*0.6)+18, tx=Math.max(padX,Math.min(W-padX-tw,p[0]-tw/2)), ty=(p[1]-tipH-10<2)?p[1]+12:p[1]-tipH-10;
-        return <g style={{pointerEvents:'none'}}><rect x={tx} y={ty} width={tw} height={tipH} rx="8" fill="var(--ink)"/><text x={tx+tw/2} y={ty+tipH*0.68} textAnchor="middle" fontSize={tipFS} fontWeight="600" fill="#fff">{txt}</text></g>;
-      })()}
-    </svg>
+    <div>
+      <div className="row" style={{ justifyContent:'space-between', alignItems:'center', marginBottom:10, gap:8, flexWrap:'wrap' }}>
+        <span className="fb-badge" style={{ color: TREND.color, background: TREND.bg }}><Icon name={TREND.icon} size={14}/> {TREND.label}</span>
+        <span className="muted" style={{ fontSize:'var(--text-xs)', fontWeight:600 }}>{byWeek ? 'by week' : 'by day'}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display:'block', overflow:'visible' }}>
+        <defs><linearGradient id="jtrend" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--brand)" stopOpacity="0.2"/><stop offset="100%" stopColor="var(--brand)" stopOpacity="0"/></linearGradient></defs>
+        {[1,2,3,4,5].map((v)=><line key={v} x1={padX} x2={W-padX} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4"/>)}
+        <path d={area} fill="url(#jtrend)"/>
+        <path d={line} fill="none" stroke="var(--brand)" strokeWidth={lineW} strokeLinecap="round" strokeLinejoin="round"/>
+        {P.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r={ptR} fill="var(--surface)" stroke="var(--brand)" strokeWidth="2.5"/>)}
+        {labels.map((lb,i)=> showLabel(i) ? <text key={i} x={x(i)} y={H-(isPhone?8:4)} textAnchor="middle" fontSize={labelFS} fill="var(--text-subtle)">{lb}</text> : null)}
+        {P.map((p,i)=><circle key={'t'+i} cx={p[0]} cy={p[1]} r="22" fill="transparent" style={{cursor:'pointer'}}
+          onClick={()=>setSel(sel===i?null:i)} onMouseEnter={()=>setSel(i)} onMouseLeave={()=>setSel(null)} />)}
+        {sel!=null && <circle cx={P[sel][0]} cy={P[sel][1]} r={selR} fill="var(--brand)" stroke="var(--surface)" strokeWidth="2.5" style={{pointerEvents:'none'}}/>}
+        {sel!=null && (()=>{
+          const p=P[sel], txt=valLabel(sel);
+          const tw=txt.length*(tipFS*0.6)+18, tx=Math.max(padX,Math.min(W-padX-tw,p[0]-tw/2)), ty=(p[1]-tipH-10<2)?p[1]+12:p[1]-tipH-10;
+          return <g style={{pointerEvents:'none'}}><rect x={tx} y={ty} width={tw} height={tipH} rx="8" fill="var(--ink)"/><text x={tx+tw/2} y={ty+tipH*0.68} textAnchor="middle" fontSize={tipFS} fontWeight="600" fill="#fff">{txt}</text></g>;
+        })()}
+      </svg>
+    </div>
   );
 }
 function MoodCalendar({ journal }) {
