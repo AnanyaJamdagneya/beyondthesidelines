@@ -7,6 +7,12 @@
     "iosScheme": "https",
     "androidScheme": "https"
   },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com"]
+    }
+  },
   "ios": {
     "contentInset": "always"
   },

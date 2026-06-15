@@ -556,6 +556,17 @@ const FirebaseBackend = {
   },
   async resetPassword(email) { await _fa.sendPasswordResetEmail(email.trim()); },
   async signInGoogle() {
+    // On the phone app a popup can't open, so use the native Google sign-in plugin to get a
+    // Google credential, then sign the JS SDK in with it (so Firestore sync uses the same account).
+    if (isNative()) {
+      const FA = nativePlugin('FirebaseAuthentication');
+      if (!FA) throw mkErr('no-google');
+      const res = await FA.signInWithGoogle();
+      const c = (res && res.credential) || {};
+      const gcred = firebase.auth.GoogleAuthProvider.credential(c.idToken, c.accessToken);
+      const cred = await _fa.signInWithCredential(gcred);
+      return { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName || (res.user && res.user.displayName) || '' };
+    }
     const cred = await _fa.signInWithPopup(new firebase.auth.GoogleAuthProvider());
     return { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName || '' };
   },
@@ -1481,7 +1492,7 @@ function Auth({ kind }) {
           <h1 className="auth-h">{title}</h1>
           <p className="muted" style={{ margin:'4px 0 22px' }}>{sub}</p>
 
-          {fbReady && !isNative() && (
+          {fbReady && (
             <>
               <Button variant="secondary" size="lg" full disabled={busy} onClick={google} iconLeft={<GoogleG size={18}/>}>
                 {isSignin ? 'Sign in with Google' : 'Continue with Google'}
