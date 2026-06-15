@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
 <title>Beyond the Sidelines, recover, together</title>
 <meta name="description" content="A recovery companion for physical therapy and journaling. Free through your PT center, or on your own." />
 <link rel="icon" href="assets/logo-mark.svg" />
@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Sidelines" />
-<link rel="stylesheet" href="styles.css?v=4" />
+<link rel="stylesheet" href="styles.css?v=7" />
 <!-- Libraries are bundled locally (vendor/) so the app is self-contained and works offline -->
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
@@ -26,6 +26,8 @@
 <script src="firebase-config.js?v=1"></script>
 </head>
 <body>
+<!-- Flag the running-as-an-app case so the CSS can switch to native chrome (bottom tab bar, safe areas) -->
+<script>try{if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())document.documentElement.classList.add('native');}catch(e){}</script>
 <div id="splash"><div style="font-family:var(--font-display);font-weight:800;font-size:1.6rem;color:var(--brand);letter-spacing:-0.02em">Beyond the Sidelines</div></div>
 <div id="root"></div>
 
@@ -359,6 +361,17 @@ const CONSTRAINTS_PRESETS = [
   'No running or jumping', 'Crutches or cane', 'Swelling flares easily', 'Limited overhead reach',
   'Pain with stairs', 'On a lifting limit',
 ];
+// Starter recovery checkpoints for the Road Back, by injury area. Editable at setup.
+const MILESTONE_PRESETS = {
+  knee:     ['Full weight on it', 'Bend to 90°', 'Walk without crutches', 'Stairs without the rail', 'Light jog', 'Back to full activity'],
+  ankle:    ['Weight-bear without pain', 'Walk without a limp', 'Balance on one foot', 'Up onto toes', 'Light jog', 'Back to full activity'],
+  shoulder: ['Lift arm to shoulder height', 'Reach overhead', 'Sleep without pain', 'Carry everyday weight', 'Push & pull strength back', 'Back to full activity'],
+  back:     ['Sit comfortably 30 min', 'Bend to tie my shoes', 'Lift light without pain', 'Walk 20 minutes', 'Full daily movement', 'Back to full activity'],
+  hip:      ['Weight-bear evenly', 'Walk without a limp', 'Climb a flight of stairs', 'Sit-to-stand easily', 'Light jog', 'Back to full activity'],
+  wrist:    ['Bend the wrist fully', 'Grip everyday objects', 'Bear weight on my hand', 'Twist a handle or jar', 'Full strength back', 'Back to full activity'],
+  other:    ['Pain under control', 'Daily tasks without help', 'Build my strength back', 'Return to exercise', 'Back to full activity'],
+};
+const mkMilestones = (key) => (MILESTONE_PRESETS[key] || MILESTONE_PRESETS.other).map((label, i) => ({ id: 'ms' + i + '_' + key, label, done: false, doneISO: null }));
 const GOAL_SUGGESTIONS = [
   'Walk a full block without stopping', 'Go up stairs without the rail', 'Sleep through the night',
   'Get back to my sport', 'Stand long enough to cook dinner', 'Bend it without wincing',
@@ -449,7 +462,7 @@ function emptyAccount({ name, email, mode } = {}) {
   // assigned at the end of onboarding. role: 'patient' (default) | 'therapist'.
   return { role: 'patient', name: name || '', email: email || '', mode: mode || 'self', center: null, centerCode: null,
     onboarded: false, profile: null, plan: [], journal: {}, sessions: {}, progress: {},
-    careNotes: [], pinned: [], seenNotes: [], goals: [], createdAt: Date.now() };
+    careNotes: [], pinned: [], seenNotes: [], goals: [], reportPref: 'concerns', createdAt: Date.now() };
 }
 // A friendly, shareable connection code for a therapist, e.g. "SUNNY-PT-4821".
 function genCode(clinic) {
@@ -703,6 +716,13 @@ function StoreProvider({ children }) {
         prizes: [ { id: 'pz1', goal: 'Log a 7-day streak', prize: 'A favorite coffee, no guilt', done: true },
           { id: 'pz2', goal: 'Hit a 14-day streak', prize: 'Movie night, full snacks', done: false },
           { id: 'pz3', goal: 'Walk a full mile pain-free', prize: 'New running shoes', done: false } ],
+        milestones: [
+          { id: 'k0', label: 'Full weight on it', done: true, doneISO: daysAgoISO(30) },
+          { id: 'k1', label: 'Bend to 90°', done: true, doneISO: daysAgoISO(20) },
+          { id: 'k2', label: 'Walk without crutches', done: true, doneISO: daysAgoISO(12) },
+          { id: 'k3', label: 'Stairs without the rail', done: false, doneISO: null },
+          { id: 'k4', label: 'Light jog', done: false, doneISO: null },
+          { id: 'k5', label: 'Back to full activity', done: false, doneISO: null } ],
         createdAt: Date.now() - 42 * 86400000, demo: true });
       applyLink(null);
       go('/today');
@@ -710,9 +730,18 @@ function StoreProvider({ children }) {
     loadDemoTherapist() {
       const clinic = 'Riverside Physical Therapy';
       const code = 'RIVER-PT';
-      const mkP = (uid, name, injuryKey, injuryLabel, plan, customEx, notes) => ({ uid, name, injuryKey, injuryLabel, constraints: [], goals: [], plan, customEx: customEx || {}, notes: notes || [], connectedAt: Date.now() - 5 * 86400000, lastReport: { completed: 4, total: 5, minutes: 18, dateISO: daysAgoISO(1) } });
+      const mkP = (uid, name, injuryKey, injuryLabel, plan, customEx, notes, extra) => ({ uid, name, injuryKey, injuryLabel, constraints: [], goals: [], plan, customEx: customEx || {}, notes: notes || [], feedback: {}, videos: {}, messages: [], connectedAt: Date.now() - 5 * 86400000, lastReport: { completed: 4, total: 5, minutes: 18, dateISO: daysAgoISO(1) }, ...(extra || {}) });
       applyLink({ code, therapistUid: 'demo-pt', therapistName: 'Dr. Priya Anand', clinic, createdAt: Date.now() - 40 * 86400000, demo: true, patients: {
-        p1: mkP('p1', 'Maya Torres', 'knee', 'Left knee', ['quadset', 'slr', 'hamcurl', 'balance'], {}, [{ id: 'n1', text: 'Your range of motion jumped this week, keep the evening stretches gentle.', type: 'encouraging', dateISO: daysAgoISO(2) }]),
+        p1: mkP('p1', 'Maya Torres', 'knee', 'Left knee', ['quadset', 'slr', 'hamcurl', 'balance'], {}, [{ id: 'n1', text: 'Your range of motion jumped this week, keep the evening stretches gentle.', type: 'encouraging', dateISO: daysAgoISO(2) }],
+          { feedback: { slr: { rating: 'easy', dateISO: daysAgoISO(1) }, hamcurl: { rating: 'hurt', dateISO: daysAgoISO(1) } },
+            messages: [{ id: 'mm1', from: 'patient', text: 'The hamstring curls hurt a little on the left side, should I keep going?', dateISO: daysAgoISO(1) }],
+            milestones: [
+              { id: 'k0', label: 'Full weight on it', done: true, doneISO: daysAgoISO(30) },
+              { id: 'k1', label: 'Bend to 90°', done: true, doneISO: daysAgoISO(20) },
+              { id: 'k2', label: 'Walk without crutches', done: true, doneISO: daysAgoISO(12) },
+              { id: 'k3', label: 'Stairs without the rail', done: false, doneISO: null },
+              { id: 'k4', label: 'Light jog', done: false, doneISO: null },
+              { id: 'k5', label: 'Back to full activity', done: false, doneISO: null } ] }),
         p2: mkP('p2', 'James Rivera', 'shoulder', 'Right shoulder', ['pendulum', 'scapsqueeze', 'wallwalk'], {}, []),
         p3: mkP('p3', 'Dana Brooks', 'ankle', 'Left ankle', ['anklecircles', 'calf'], {}, [{ id: 'n2', text: 'Nice progress on the balance work. Add the heel raises when ready.', type: 'cheer', dateISO: daysAgoISO(4) }]),
       } });
@@ -720,23 +749,24 @@ function StoreProvider({ children }) {
       go('/pt');
     },
 
-    async completeOnboarding(profile, goals, modeInfo) {
+    async completeOnboarding(profile, goals, modeInfo, milestones) {
+      const ms = milestones || [];
       if (modeInfo.mode === 'center') {
         const code = (modeInfo.code || '').toUpperCase();
         let l = null; try { l = code ? await backend.loadLink(code) : null; } catch (e) {}
         if (l) {
           const uid = uidRef.current; l.patients = l.patients || {};
-          l.patients[uid] = { uid, name: account.name, injuryKey: profile.injuryKey, injuryLabel: profile.injuryLabel, constraints: profile.constraints || [], goals, plan: [], customEx: {}, notes: [], connectedAt: Date.now(), lastReport: null };
+          l.patients[uid] = { uid, name: account.name, injuryKey: profile.injuryKey, injuryLabel: profile.injuryLabel, constraints: profile.constraints || [], goals, milestones: ms, plan: [], customEx: {}, notes: [], connectedAt: Date.now(), lastReport: null };
           await commitLink(l);
-          patch((a) => ({ ...a, mode: 'center', center: l.clinic, centerCode: code, real: true, onboarded: true, profile, goals, plan: [] }));
+          patch((a) => ({ ...a, mode: 'center', center: l.clinic, centerCode: code, real: true, onboarded: true, profile, goals, milestones: ms, plan: [] }));
         } else {
           const name = DEMO_CENTERS[code] || modeInfo.center || 'Your PT center';
-          patch((a) => ({ ...a, mode: 'center', center: name, centerCode: code || null, real: false, onboarded: true, profile, goals,
+          patch((a) => ({ ...a, mode: 'center', center: name, centerCode: code || null, real: false, onboarded: true, profile, goals, milestones: ms,
             plan: (AREA_PLANS[profile.injuryKey] || DEFAULT_PLAN).slice(),
             careNotes: buildCareNotes(name, (account.name || 'there').split(' ')[0]) }));
         }
       } else {
-        patch((a) => ({ ...a, mode: 'self', center: null, centerCode: null, real: false, onboarded: true, profile, goals, plan: [] }));
+        patch((a) => ({ ...a, mode: 'self', center: null, centerCode: null, real: false, onboarded: true, profile, goals, milestones: ms, plan: [] }));
       }
       go('/today');
     },
@@ -767,9 +797,19 @@ function StoreProvider({ children }) {
     ptAddCustomExercise(patientUid, ex) { const id = 'cx' + Date.now(); ptPatch(patientUid, (p) => ({ ...p, customEx: { ...(p.customEx || {}), [id]: { ...ex, id, custom: true } }, plan: [...(p.plan || []), id] })); },
     ptAddNote(patientUid, text, type) { ptPatch(patientUid, (p) => ({ ...p, notes: [{ id: 'n' + Date.now(), text, type: type || 'encouraging', dateISO: todayISO() }, ...(p.notes || [])] })); },
     ptRemoveNote(patientUid, noteId) { ptPatch(patientUid, (p) => ({ ...p, notes: (p.notes || []).filter((n) => n.id !== noteId) })); },
+    // PT attaches a how-to video (YouTube or any link) to one of the patient's exercises.
+    ptSetVideo(patientUid, exId, url) { ptPatch(patientUid, (p) => { const videos = { ...(p.videos || {}) }; if (url && url.trim()) videos[exId] = url.trim(); else delete videos[exId]; return { ...p, videos }; }); },
+    // Two-way chat: PT replies in the patient's message thread.
+    ptReply(patientUid, text) { ptPatch(patientUid, (p) => ({ ...p, messages: [...(p.messages || []), { id: 'm' + Date.now(), from: 'therapist', text: text.trim(), dateISO: todayISO() }] })); },
+    // Therapist preference for how much exercise-feedback to surface: 'all' | 'concerns' | 'off'.
+    setReportPref(pref) { patch((a) => ({ ...a, reportPref: pref })); },
+    // PT edits the patient's Road Back checkpoints (in the shared link).
+    ptSetMilestones(patientUid, list) { ptPatch(patientUid, (p) => ({ ...p, milestones: list })); },
 
     saveEntry(iso, data) { patch((a) => ({ ...a, journal: { ...a.journal, [iso]: { ...data, updatedAt: Date.now() } } })); },
     setSetDone(iso, exId, n) { patch((a) => ({ ...a, progress: { ...a.progress, [iso]: { ...(a.progress[iso] || {}), [exId]: n } } })); },
+    // How many times today this exercise has been done (for exercises the PT marks "Nx a day").
+    setRounds(iso, exId, n) { patch((a) => ({ ...a, dayRounds: { ...(a.dayRounds || {}), [iso]: { ...((a.dayRounds || {})[iso] || {}), [exId]: Math.max(0, n) } } })); },
     setFeedback(exId, rating) {
       const uid = uidRef.current; const l = linkRef.current;
       // For a real PT patient, feedback goes to the therapist via the shared link.
@@ -811,6 +851,25 @@ function StoreProvider({ children }) {
       if (l && l.patients && l.patients[uid]) commitLink({ ...l, patients: { ...l.patients, [uid]: { ...l.patients[uid], lastReport: { ...payload, dateISO: iso } } } });
     },
     markNotesRead() { const ids = careNotes.map((n) => n.id); patch((a) => ({ ...a, seenNotes: Array.from(new Set([...(a.seenNotes || []), ...ids])) })); },
+    // Patient edits their own Road Back checkpoints. Writes to the shared link when
+    // connected to a PT (so the therapist sees them too), otherwise to their account.
+    updateMilestones(list) {
+      const uid = uidRef.current; const l = linkRef.current;
+      if (l && l.patients && l.patients[uid]) {
+        const p = l.patients[uid];
+        commitLink({ ...l, patients: { ...l.patients, [uid]: { ...p, milestones: list } } });
+      } else {
+        patch((a) => ({ ...a, milestones: list }));
+      }
+    },
+    // Patient sends a message to their PT (writes into the shared link thread).
+    sendMessageToPT(text) {
+      const uid = uidRef.current; const l = linkRef.current;
+      if (l && l.patients && l.patients[uid]) {
+        const p = l.patients[uid];
+        commitLink({ ...l, patients: { ...l.patients, [uid]: { ...p, messages: [...(p.messages || []), { id: 'm' + Date.now(), from: 'patient', text: text.trim(), dateISO: todayISO() }] } } });
+      }
+    },
     addGoal(text) { patch((a) => ({ ...a, goals: [...a.goals, { id: 'g' + Date.now(), text, done: false }] })); },
     toggleGoal(id) { patch((a) => ({ ...a, goals: a.goals.map((g) => g.id === id ? { ...g, done: !g.done } : g) })); },
     removeGoal(id) { patch((a) => ({ ...a, goals: a.goals.filter((g) => g.id !== id) })); },
@@ -1102,6 +1161,11 @@ function toMusicEmbed(url) {
   if (sp) return { kind: 'spotify', src: `https://open.spotify.com/embed/${sp[1]}/${sp[2]}`, height: sp[1] === 'track' || sp[1] === 'episode' ? 152 : 352 };
   if (/music\.apple\.com/.test(url)) return { kind: 'apple', src: url.replace('://music.apple.com', '://embed.music.apple.com'), height: 175 };
   return null;
+}
+// Turn a YouTube watch/share/shorts link into an embeddable player URL (null if not YouTube).
+function toYouTubeEmbed(url) {
+  const m = (url || '').match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  return m ? `https://www.youtube.com/embed/${m[1]}` : null;
 }
 
 /* ===================================================================== *
@@ -1485,6 +1549,8 @@ function Onboarding() {
   const [constraints, setConstraints] = useState([]);
   const [goals, setGoals] = useState([]);
   const [goalInput, setGoalInput] = useState('');
+  const [milestones, setMilestones] = useState([]);
+  const [msInput, setMsInput] = useState('');
   const [mode, setMode] = useState(startMode);
   const [code, setCode] = useState(joinCode || '');
 
@@ -1493,8 +1559,11 @@ function Onboarding() {
 
   const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const addGoal = (text) => { const t = text.trim(); if (t && !goals.includes(t)) setGoals([...goals, t]); setGoalInput(''); };
+  const addMs = () => { const t = msInput.trim(); if (t) setMilestones([...milestones, { id: 'ms' + Date.now(), label: t, done: false, doneISO: null }]); setMsInput(''); };
+  // Seed the Road Back checkpoints from the chosen injury (re-seeds if they change injury).
+  useEffect(() => { setMilestones(mkMilestones(injuryKey)); }, [injuryKey]);
 
-  const STEPS = ['Welcome', 'Your injury', 'Your limits', 'Your goals', 'How you’ll use it'];
+  const STEPS = ['Welcome', 'Your injury', 'Your limits', 'Your goals', 'Your road back', 'How you’ll use it'];
   const pct = ((step + 1) / STEPS.length) * 100;
 
   const finish = () => {
@@ -1509,7 +1578,7 @@ function Onboarding() {
     };
     const goalObjs = goals.map((t, i) => ({ id: 'g' + i + Date.now(), text: t, done: false }));
     const center = mode === 'center' ? (DEMO_CENTERS[code.toUpperCase()] || 'Your PT center') : null;
-    completeOnboarding(profile, goalObjs, { mode, center, code: code.toUpperCase() });
+    completeOnboarding(profile, goalObjs, { mode, center, code: code.toUpperCase() }, milestones);
     window.__btsJoinCode = null;
     go('/today');
   };
@@ -1535,7 +1604,7 @@ function Onboarding() {
           )}
           {step === 1 && (
             <div>
-              <span className="ob-eyebrow"><Icon name="activity" size={14}/> Step 1 of 4</span>
+              <span className="ob-eyebrow"><Icon name="activity" size={14}/> Step 1 of 5</span>
               <h1 className="ob-title">What are you recovering from?</h1>
               <p className="ob-sub">Pick the area closest to your injury. This shapes your starter exercises.</p>
               <div className="chip-grid" style={{ marginBottom:18 }}>
@@ -1560,7 +1629,7 @@ function Onboarding() {
           )}
           {step === 2 && (
             <div>
-              <span className="ob-eyebrow"><Icon name="shield-check" size={14}/> Step 2 of 4</span>
+              <span className="ob-eyebrow"><Icon name="shield-check" size={14}/> Step 2 of 5</span>
               <h1 className="ob-title">What are your limits right now?</h1>
               <p className="ob-sub">Tap anything that’s true today. We’ll keep these front and center so you stay safe, nothing here pushes past them.</p>
               <div className="chip-grid">
@@ -1571,7 +1640,7 @@ function Onboarding() {
           )}
           {step === 3 && (
             <div>
-              <span className="ob-eyebrow"><Icon name="target" size={14}/> Step 3 of 4</span>
+              <span className="ob-eyebrow"><Icon name="target" size={14}/> Step 3 of 5</span>
               <h1 className="ob-title">What are you working toward?</h1>
               <p className="ob-sub">Add a few small, real goals. The little ones you can almost taste, those keep you going.</p>
               <div className="row" style={{ gap:10, marginBottom:14 }}>
@@ -1591,6 +1660,26 @@ function Onboarding() {
             </div>
           )}
           {step === 4 && (
+            <div>
+              <span className="ob-eyebrow"><Icon name="footprints" size={14}/> Step 4 of 5</span>
+              <h1 className="ob-title">Your road back</h1>
+              <p className="ob-sub">These are the checkpoints between where you are now and back to normal. We’ve started you off, make them yours: remove any, or add your own.</p>
+              {milestones.length > 0 && (
+                <div className="col" style={{ gap:8, marginBottom:16 }}>
+                  {milestones.map((m) => (
+                    <div key={m.id} className="goal-row"><Icon name="pin" size={16} style={{ color:'var(--brand)' }}/><span>{m.label}</span><button className="icon-btn" onClick={() => setMilestones(milestones.filter((x)=>x.id!==m.id))}><Icon name="x" size={15}/></button></div>
+                  ))}
+                </div>
+              )}
+              <div className="row" style={{ gap:10 }}>
+                <Input placeholder="Add a checkpoint (e.g. jog a mile)" value={msInput} onChange={(e)=>setMsInput(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') addMs(); }} />
+                <Button variant="secondary" onClick={addMs} iconLeft={<Icon name="plus" size={16}/>}>Add</Button>
+              </div>
+              <p className="muted" style={{ margin:'14px 0 0', fontSize:'var(--text-xs)' }}>You’ll tick these off on your Journey as you reach them. {mode === 'center' ? 'Your PT can adjust them too.' : ''}</p>
+              <div className="ob-foot"><Button variant="ghost" onClick={back} iconLeft={<Icon name="arrow-left" size={16}/>}>Back</Button><Button variant="primary" size="lg" onClick={next} iconRight={<Icon name="arrow-right" size={18}/>}>Continue</Button></div>
+            </div>
+          )}
+          {step === 5 && (
             <div>
               <span className="ob-eyebrow"><Icon name="heart-handshake" size={14}/> Last step</span>
               <h1 className="ob-title">How will you use Beyond the Sidelines?</h1>
@@ -1878,41 +1967,36 @@ function MusicControls() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1 }} onClick={() => setOpen(false)} />
           <div className="menu" style={{ position: 'absolute', top: 46, right: 0, left: 'auto', zIndex: 2, minWidth: 270, maxWidth: '90vw' }}>
-            <div className="menu-head"><div style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Music</div><div className="muted" style={{ fontSize: 'var(--text-xs)' }}>Play Spotify or Apple Music right here, or pick a vibe.</div></div>
+            <div className="menu-head"><div style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Music for your session</div><div className="muted" style={{ fontSize: 'var(--text-xs)' }}>Bring your own from Spotify or Apple Music, it plays right here while you move.</div></div>
 
-            <div style={sectionLabel}>Play here</div>
-            <div style={{ padding: '4px 12px 8px' }}>
-              <div className="row" style={{ gap: 8 }}>
-                <Input placeholder="Paste a Spotify or Apple Music link" value={linkInput} onChange={(e) => { setLinkInput(e.target.value); setLinkErr(''); }} onKeyDown={(e) => { if (e.key === 'Enter') playLink(); }} />
-                <Button variant="primary" size="sm" onClick={playLink} iconLeft={<Icon name="play" size={15} />}>Play</Button>
-              </div>
+            <button className="menu-item" onClick={() => openService(MUSIC_LINKS.spotify)} style={{ gap: 12 }}>
+              <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#1DB954', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flex: '0 0 auto' }}><Icon name="music" size={15} /></span>
+              <span className="col" style={{ gap: 1, alignItems: 'flex-start' }}><span style={{ fontWeight: 600, color: 'var(--text-strong)' }}>Open Spotify</span><span className="muted" style={{ fontSize: '11px' }}>Pick a playlist, then paste it below</span></span>
+              <Icon name="arrow-right" size={15} style={{ marginLeft: 'auto', color: 'var(--text-subtle)' }} />
+            </button>
+            <button className="menu-item" onClick={() => openService(MUSIC_LINKS.apple)} style={{ gap: 12 }}>
+              <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#FA2B56,#FB5C74)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flex: '0 0 auto' }}><Icon name="music" size={15} /></span>
+              <span className="col" style={{ gap: 1, alignItems: 'flex-start' }}><span style={{ fontWeight: 600, color: 'var(--text-strong)' }}>Open Apple Music</span><span className="muted" style={{ fontSize: '11px' }}>Pick a playlist, then paste it below</span></span>
+              <Icon name="arrow-right" size={15} style={{ marginLeft: 'auto', color: 'var(--text-subtle)' }} />
+            </button>
+
+            <div style={{ ...sectionLabel, borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 10 }}>Paste a link to play here</div>
+            <div style={{ padding: '4px 12px 10px' }}>
+              <Input placeholder="Spotify or Apple Music link" value={linkInput} onChange={(e) => { setLinkInput(e.target.value); setLinkErr(''); }} onKeyDown={(e) => { if (e.key === 'Enter') playLink(); }} />
+              <Button variant="primary" size="sm" onClick={playLink} iconLeft={<Icon name="play" size={15} />} style={{ width: '100%', marginTop: 8 }}>Play in my session</Button>
               {linkErr && <div style={{ color: 'var(--danger)', fontSize: '11px', marginTop: 6 }}>{linkErr}</div>}
-              {embed && <div className="row" style={{ gap: 6, marginTop: 8, fontSize: '11px', color: 'var(--secondary)', fontWeight: 600 }}><Icon name="check" size={13} /> Playing below{embed.kind === 'spotify' ? ' on Spotify' : ' on Apple Music'}</div>}
-              <div className="muted" style={{ fontSize: '11px', marginTop: 6, lineHeight: 1.4 }}>Tip: in Spotify/Apple Music, tap Share → Copy Link. Full songs need you signed in to that service (free plays a preview).</div>
+              {embed && <div className="row" style={{ gap: 6, marginTop: 8, fontSize: '11px', color: 'var(--secondary)', fontWeight: 600 }}><Icon name="check" size={13} /> Now playing{embed.kind === 'spotify' ? ' from Spotify' : ' from Apple Music'}</div>}
+              <div className="muted" style={{ fontSize: '11px', marginTop: 8, lineHeight: 1.4 }}>In Spotify or Apple Music, tap Share → Copy Link. Signed in plays the full track, otherwise a short preview.</div>
             </div>
 
-            <div style={{ ...sectionLabel, borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 10 }}>Or</div>
-            <button className="menu-item" onClick={() => openService(MUSIC_LINKS.spotify)}>
-              <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#1DB954', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flex: '0 0 auto' }}><Icon name="music" size={11} /></span>
-              Browse Spotify <Icon name="arrow-right" size={14} style={{ marginLeft: 'auto', color: 'var(--text-subtle)' }} />
-            </button>
-            <button className="menu-item" onClick={() => openService(MUSIC_LINKS.apple)}>
-              <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'linear-gradient(135deg,#FA2B56,#FB5C74)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flex: '0 0 auto' }}><Icon name="music" size={11} /></span>
-              Browse Apple Music <Icon name="arrow-right" size={14} style={{ marginLeft: 'auto', color: 'var(--text-subtle)' }} />
-            </button>
-            <label className="menu-item" style={{ cursor: 'pointer' }}>
-              <Icon name="play" size={16} /> {mode === 'file' ? `Playing: ${fileName}` : 'A track from my device'}
+            <label className="menu-item" style={{ cursor: 'pointer', borderTop: '1px solid var(--border)' }}>
+              <Icon name="play" size={16} /> {mode === 'file' ? `Playing: ${fileName}` : 'Play a track from my device'}
               {mode === 'file' && <Icon name="check" size={15} style={{ marginLeft: 'auto', color: 'var(--secondary)' }} />}
               <input type="file" accept="audio/*" onChange={onFile} style={{ display: 'none' }} />
             </label>
-
-            <div style={{ ...sectionLabel, borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 10 }}>Built-in vibes</div>
-            <div className="row" style={{ gap: 6, padding: '4px 12px 8px', flexWrap: 'wrap' }}>
-              {Object.keys(VIBES).map((v) => (
-                <button key={v} className="chip" data-on={mode === v ? 'true' : undefined} onClick={() => pickVibe(v)} style={{ fontSize: 'var(--text-xs)', padding: '7px 14px' }}>{VIBES[v].label}</button>
-              ))}
-              <button className="chip" data-on={mode === 'off' ? 'true' : undefined} onClick={turnOff} style={{ fontSize: 'var(--text-xs)', padding: '7px 14px' }}>Off</button>
-            </div>
+            {(mode === 'file' || embed) && (
+              <button className="menu-item" onClick={turnOff} style={{ color: 'var(--danger)' }}><Icon name="x" size={16} /> Stop music</button>
+            )}
           </div>
         </>
       )}
@@ -2052,11 +2136,15 @@ function SessionPlayer({ items, startProgress, onSetDone, onFeedback, onClose, o
 }
 
 /* ---------- EXERCISES (PT session) ---------- */
-function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, assigned, feedback, onFeedback, reorderable, onDragStartItem, onDropItem, onDragEndItem, onDragOverItem, dragging, dragOver }) {
+function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, assigned, feedback, onFeedback, rounds=0, onRound, reorderable, onDragStartItem, onDropItem, onDragEndItem, onDragOverItem, dragging, dragOver }) {
   const [open, setOpen] = useState(false);
   const th = THUMBS[ex.thumb] || THUMBS.quad;
   const isDone = done >= ex.sets;
   const dose = ex.type === 'hold' ? `${ex.holdSec}s hold` : `${ex.reps} reps`;
+  const perDay = ex.timesPerDay || 1;
+  const multi = perDay > 1;
+  const roundsDone = Math.min(rounds || 0, perDay);
+  const allRounds = roundsDone >= perDay;
   return (
     <div className="ex-card" data-done={isDone ? 'true' : undefined}
       onDragOver={reorderable ? (e) => { e.preventDefault(); onDragOverItem && onDragOverItem(); } : undefined}
@@ -2086,6 +2174,18 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, assigned, feedba
           {open ? 'Hide' : 'How to'} <Icon name={open ? 'chevron-down' : 'chevron-right'} size={15}/>
         </button>
       </div>
+      {multi && onRound && (
+        <div className="round-track" data-done={allRounds ? 'true' : undefined}>
+          <Icon name="repeat" size={16} style={{ color: allRounds ? 'var(--sage-600)' : 'var(--brand)', flex:'0 0 auto' }}/>
+          <span style={{ fontWeight:600, color:'var(--text-strong)', fontSize:'var(--text-sm)' }}>{allRounds ? `All ${perDay} done today` : `Do this ${perDay}× today`}</span>
+          <div className="row" style={{ gap:6, marginLeft:'auto' }}>
+            {Array.from({ length: perDay }).map((_, i) => (
+              <button key={i} className="set-dot" style={{ width:32, height:32, fontSize:'var(--text-xs)' }} data-on={i < roundsDone ? 'true' : undefined}
+                onClick={() => onRound(i < roundsDone ? i : i + 1)} title={`Mark time ${i + 1}`}>{i < roundsDone ? <Icon name="check" size={14}/> : i + 1}</button>
+            ))}
+          </div>
+        </div>
+      )}
       {isDone && onFeedback && (
         <div className="row" style={{ gap:8, flexWrap:'wrap', alignItems:'center', padding:'0 18px 16px' }}>
           <span className="muted" style={{ fontSize:'var(--text-sm)', fontWeight:600 }}>How did it feel?</span>
@@ -2102,7 +2202,17 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, assigned, feedba
       {open && (
         <div className="ex-detail">
           {ex.summary && <p className="muted" style={{ margin:'0 0 12px', fontSize:'var(--text-sm)' }}>{ex.summary}</p>}
-          {ex.videoUrl && <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" style={{ display:'inline-flex', alignItems:'center', gap:7, marginBottom:14, fontWeight:600, fontSize:'var(--text-sm)' }}><span className="report-ic" style={{ width:30, height:30, borderRadius:'var(--radius-sm)' }}><Icon name="play" size={15}/></span> Watch your PT’s demo</a>}
+          {ex.videoUrl && (() => {
+            const yt = toYouTubeEmbed(ex.videoUrl);
+            return yt
+              ? <div style={{ marginBottom:14 }}>
+                  <div style={{ fontWeight:600, fontSize:'var(--text-sm)', marginBottom:8, display:'inline-flex', alignItems:'center', gap:7 }}><span className="report-ic" style={{ width:26, height:26, borderRadius:'var(--radius-sm)' }}><Icon name="play" size={13}/></span> Your PT’s demo</div>
+                  <div style={{ position:'relative', paddingTop:'56.25%', borderRadius:'var(--radius-md)', overflow:'hidden', border:'1px solid var(--border)' }}>
+                    <iframe title="Exercise demo" src={yt} style={{ position:'absolute', inset:0, width:'100%', height:'100%', border:0 }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen loading="lazy" />
+                  </div>
+                </div>
+              : <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" style={{ display:'inline-flex', alignItems:'center', gap:7, marginBottom:14, fontWeight:600, fontSize:'var(--text-sm)' }}><span className="report-ic" style={{ width:30, height:30, borderRadius:'var(--radius-sm)' }}><Icon name="play" size={15}/></span> Watch your PT’s demo</a>;
+          })()}
           <ol className="ex-steps">{ex.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
           {ex.cues && ex.cues.length > 0 && <div className="row" style={{ gap:8, flexWrap:'wrap', marginTop:14 }}>{ex.cues.map((c, i) => <span key={i} className="cue"><Icon name="info" size={12}/> {c}</span>)}</div>}
         </div>
@@ -2126,7 +2236,7 @@ function LibRow({ e, added, override, cautions, onAdd, onUpdate }) {
       <div className="row" style={{ gap: 14 }}>
         <span className="lib-thumb" style={{ background: th.grad }}><Icon name={th.icon} size={22} /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, color: 'var(--text-strong)' }}>{e.name}{e.custom && <Badge tone="sky" style={{ marginLeft: 8 }}>Custom</Badge>}</div>
+          <div style={{ fontWeight: 700, color: 'var(--text-strong)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>{e.name}{e.custom && <Badge tone="sky">Custom</Badge>}</div>
           <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>{e.target} · {isHold ? clampN(hold, 3, 180) + 's hold' : clampN(reps, 1, 60) + ' reps'} × {clampN(sets, 1, 12)}</div>
           {cautions.length > 0 && <span className="fb-badge" style={{ marginTop: 6, color: '#9A6A1E', background: 'var(--warning-soft)' }} title={`You noted: ${cautions.join(', ')}`}><Icon name="info" size={12} /> Check with your PT</span>}
         </div>
@@ -2166,7 +2276,7 @@ function LibraryDrawer({ onClose, defaultArea }) {
       <div className="drawer">
         <div className="drawer-head"><div><div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-lg)' }}>Exercise library</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>Add and tune anything, or build your own.</div></div><button className="icon-btn" onClick={onClose}><Icon name="x" size={18}/></button></div>
         <div className="drawer-body">
-          <Button variant="secondary" full onClick={() => setCustomOpen((o) => !o)} iconLeft={<Icon name="sparkles" size={16}/>}>Create a custom exercise</Button>
+          <Button variant="soft" size="lg" full onClick={() => setCustomOpen((o) => !o)} iconLeft={<Icon name="sparkles" size={18}/>} style={{ fontWeight:700 }}>Create a custom exercise</Button>
           {customOpen && <CustomExerciseForm onSave={(ex) => { addCustomExercise(ex); setCustomOpen(false); }} onCancel={() => setCustomOpen(false)} />}
           <div className="lib-cats">{chips.map((c) => <button key={c.key} className="chip" data-on={area === c.key} onClick={() => setArea(c.key)} style={{ padding:'7px 14px', fontSize:'var(--text-xs)' }}>{c.label}</button>)}</div>
           {list.length === 0 && <p className="muted" style={{ fontSize:'var(--text-sm)' }}>No exercises in this area yet.</p>}
@@ -2180,7 +2290,7 @@ function LibraryDrawer({ onClose, defaultArea }) {
   );
 }
 function Exercises() {
-  const { account, setSetDone, removeExercise, sendReport, ptPatient, setFeedback, setPlanOrder, duplicateExercise } = useStore();
+  const { account, setSetDone, setRounds, removeExercise, sendReport, ptPatient, setFeedback, setPlanOrder, duplicateExercise } = useStore();
   const iso = todayISO();
   const [drawer, setDrawer] = useState(false);
   const [play, setPlay] = useState(false);
@@ -2189,11 +2299,18 @@ function Exercises() {
   const [overId, setOverId] = useState(null);
   const dragRef = useRef(null);
   const progress = account.progress[iso] || {};
+  const dayRounds = (account.dayRounds || {})[iso] || {};
   const ptPlan = (ptPatient && ptPatient.plan) || [];
   const ptSet = new Set(ptPlan);
   const exMap = { ...EXERCISES, ...((ptPatient && ptPatient.customEx) || {}), ...(account.customEx || {}) };
   const overrides = account.exOverrides || {};
-  const resolve = (id) => { const base = exMap[id]; return base ? (overrides[id] ? { ...base, ...overrides[id] } : base) : null; };
+  const ptVideos = (ptPatient && ptPatient.videos) || {};
+  const resolve = (id) => {
+    const base = exMap[id]; if (!base) return null;
+    let ex = overrides[id] ? { ...base, ...overrides[id] } : base;
+    if (ptVideos[id]) ex = { ...ex, videoUrl: ptVideos[id] };
+    return ex;
+  };
   const ptItems = ptPlan.map(resolve).filter(Boolean);
   const ownItems = account.plan.filter((id) => !ptSet.has(id)).map(resolve).filter(Boolean);
   const items = [...ptItems, ...ownItems];
@@ -2296,6 +2413,7 @@ function Exercises() {
           {items.map((e) => { const assigned = ptSet.has(e.id); return (
             <ExerciseCard key={e.id} ex={e} done={progress[e.id] || 0} assigned={assigned}
               feedback={fbMap[e.id]} onFeedback={setFeedback}
+              rounds={dayRounds[e.id] || 0} onRound={(n) => setRounds(iso, e.id, n)}
               onSet={(n) => setSetDone(iso, e.id, n)} onRemove={() => removeExercise(e.id)}
               onDuplicate={() => { duplicateExercise(e); ping('Duplicated, tweak your copy from Add exercise.'); }}
               reorderable={!assigned && ownItems.length > 1}
@@ -2461,8 +2579,16 @@ function Journal() {
 }
 
 /* ---------- JOURNEY ---------- */
+// True on the phone app or a phone-width browser (so we can compact things for touch).
+function useIsPhone() {
+  const get = () => { try { return isNative() || window.innerWidth <= 760; } catch (e) { return false; } };
+  const [phone, setPhone] = useState(get);
+  useEffect(() => { const on = () => setPhone(get()); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on); }, []);
+  return phone;
+}
 function MoodTrend({ journal }) {
   // weekly averages over the last ~5 weeks
+  const [sel, setSel] = useState(null);
   const dates = Object.keys(journal).sort();
   if (dates.length < 2) return null;
   const buckets = {};
@@ -2488,6 +2614,16 @@ function MoodTrend({ journal }) {
       <path d={line} fill="none" stroke="var(--brand)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
       {P.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r="4.5" fill="var(--surface)" stroke="var(--brand)" strokeWidth="2.5"/>)}
       {weeks.map((wk,i)=><text key={i} x={x(i)} y={H-4} textAnchor="middle" fontSize="11" fill="var(--text-subtle)">{wk===0?'This wk':wk+'w ago'}</text>)}
+      {/* tap or hover a point to read its value (helps on the small phone chart) */}
+      {P.map((p,i)=><circle key={'t'+i} cx={p[0]} cy={p[1]} r="18" fill="transparent" style={{cursor:'pointer'}}
+        onClick={()=>setSel(sel===i?null:i)} onMouseEnter={()=>setSel(i)} onMouseLeave={()=>setSel(null)} />)}
+      {sel!=null && <circle cx={P[sel][0]} cy={P[sel][1]} r="6.5" fill="var(--brand)" stroke="var(--surface)" strokeWidth="2.5" style={{pointerEvents:'none'}}/>}
+      {sel!=null && (()=>{
+        const p=P[sel], v=pts[sel];
+        const txt=`${v.toFixed(1)} avg · ${weeks[sel]===0?'this week':weeks[sel]+'w ago'}`;
+        const tw=txt.length*6.6+18, tx=Math.max(padX,Math.min(W-padX-tw,p[0]-tw/2)), ty=p[1]-36<2?p[1]+16:p[1]-36;
+        return <g style={{pointerEvents:'none'}}><rect x={tx} y={ty} width={tw} height="26" rx="8" fill="var(--ink)"/><text x={tx+tw/2} y={ty+17} textAnchor="middle" fontSize="12.5" fontWeight="600" fill="#fff">{txt}</text></g>;
+      })()}
     </svg>
   );
 }
@@ -2516,9 +2652,68 @@ function MoodCalendar({ journal }) {
     </div>
   );
 }
+function RoadBack({ milestones, onUpdate, injuryLabel, ownerName, editable = true }) {
+  const [add, setAdd] = useState('');
+  const list = milestones || [];
+  const N = list.length;
+  const doneCount = list.filter((m) => m.done).length;
+  let cur = -1; list.forEach((m, i) => { if (m.done) cur = i; });
+  const markerIdx = cur >= 0 ? cur : 0;
+  const allDone = N > 0 && doneCount === N;
+  const W = 356, H = 104, pad = 26, baseY = 56, amp = 22;
+  const pts = list.map((m, i) => {
+    const x = N <= 1 ? W / 2 : pad + (i / (N - 1)) * (W - 2 * pad);
+    const y = baseY + amp * Math.sin(i * 1.1);
+    return [x, y];
+  });
+  const toggle = (id) => onUpdate(list.map((m) => m.id === id ? { ...m, done: !m.done, doneISO: !m.done ? todayISO() : null } : m));
+  const remove = (id) => onUpdate(list.filter((m) => m.id !== id));
+  const addOne = () => { const t = add.trim(); if (!t) return; onUpdate([...list, { id: 'ms' + Date.now(), label: t, done: false, doneISO: null }]); setAdd(''); };
+  return (
+    <Card>
+      <div className="card-eyebrow" style={{ marginBottom: 4 }}><Icon name="footprints" size={14} /> {ownerName ? `${ownerName}’s road back` : 'Your road back'}</div>
+      <h3 style={{ fontFamily: 'var(--font-display)', margin: '0 0 2px', fontSize: 'var(--text-xl)' }}>{allDone ? 'Back in the game!' : N === 0 ? 'Set your checkpoints' : 'The road back to full activity'}</h3>
+      <p className="muted" style={{ margin: '0 0 14px', fontSize: 'var(--text-sm)' }}>{injuryLabel ? injuryLabel + ' · ' : ''}{N === 0 ? 'Add the checkpoints to work toward.' : `${doneCount} of ${N} checkpoints reached`}</p>
+      {N > 0 && (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', marginBottom: 10 }}>
+          <polyline points={pts.map((p) => p.join(',')).join(' ')} fill="none" stroke="var(--sand-300)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="1 10" />
+          {pts.slice(1).map((p, i) => list[i + 1].done ? (
+            <line key={i} x1={pts[i][0]} y1={pts[i][1]} x2={p[0]} y2={p[1]} stroke="var(--brand)" strokeWidth="5" strokeLinecap="round" />
+          ) : null)}
+          {pts.map((p, i) => (
+            <circle key={i} cx={p[0]} cy={p[1]} r={i === markerIdx ? 11 : 7}
+              fill={list[i].done ? 'var(--brand)' : 'var(--surface)'} stroke={list[i].done ? 'var(--brand)' : 'var(--border-strong)'} strokeWidth="2.5" />
+          ))}
+          <line x1={pts[N - 1][0]} y1={pts[N - 1][1] - 5} x2={pts[N - 1][0]} y2={pts[N - 1][1] - 23} stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" />
+          <path d={`M${pts[N - 1][0]} ${pts[N - 1][1] - 23} l11 3.5 l-11 4 z`} fill={allDone ? 'var(--brand)' : 'var(--sand-400)'} />
+          <circle cx={pts[markerIdx][0]} cy={pts[markerIdx][1]} r="16" fill="none" stroke="var(--brand)" strokeWidth="2" opacity="0.4" />
+        </svg>
+      )}
+      <div className="col" style={{ gap: 8 }}>
+        {list.map((m) => (
+          <div key={m.id} className="prize-row">
+            <button className="prize-check" data-done={m.done ? 'true' : undefined} onClick={() => toggle(m.id)} title={m.done ? 'Reached' : 'Mark reached'}>{m.done && <Icon name="check" size={16} />}</button>
+            <span style={{ flex: 1, color: 'var(--text-strong)', fontWeight: 500, textDecoration: m.done ? 'line-through' : 'none', opacity: m.done ? 0.6 : 1 }}>{m.label}</span>
+            {editable && <button className="icon-btn" onClick={() => remove(m.id)}><Icon name="x" size={15} /></button>}
+          </div>
+        ))}
+        {N === 0 && <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>No checkpoints yet. Add the milestones on the way back to full activity.</p>}
+      </div>
+      {editable && (
+        <div className="row" style={{ gap: 10, marginTop: 12 }}>
+          <Input placeholder="Add a checkpoint…" value={add} onChange={(e) => setAdd(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addOne(); }} />
+          <Button variant="secondary" disabled={!add.trim()} onClick={addOne} iconLeft={<Icon name="plus" size={16} />}>Add</Button>
+        </div>
+      )}
+    </Card>
+  );
+}
 function Journey() {
-  const { account, markNotesRead, toggleGoal, careNotes, addPrize, togglePrize, removePrize } = useStore();
+  const { account, markNotesRead, toggleGoal, careNotes, addPrize, togglePrize, removePrize, updateMilestones, ptPatient } = useStore();
   const { journal } = account;
+  const roadMilestones = (ptPatient && ptPatient.milestones) ? ptPatient.milestones : (account.milestones || []);
+  const isPhone = useIsPhone();
+  const [badgesOpen, setBadgesOpen] = useState(false);
   const [goalIn, setGoalIn] = useState('');
   const [prizeIn, setPrizeIn] = useState('');
   useEffect(() => { if (account.mode === 'center') markNotesRead(); }, []);
@@ -2554,6 +2749,8 @@ function Journey() {
           <h2 className="greet-hello" style={{ marginTop:8 }}>{total === 0 ? 'Your story starts today.' : 'Look how far you’ve come.'}</h2>
           <p className="greet-line">{account.profile ? account.profile.injuryLabel + ' · ' : ''}{total === 0 ? 'No entries yet, your first check-in fills this in.' : `${total} entries logged · ${sessionsLogged} sessions done`}</p>
         </div>
+
+        <RoadBack milestones={roadMilestones} onUpdate={updateMilestones} injuryLabel={account.profile && account.profile.injuryLabel} />
 
         {total === 0 && sessionsLogged === 0 && (
           <Card variant="soft" className="center" padding="clamp(28px,5vw,48px)">
@@ -2622,8 +2819,12 @@ function Journey() {
         </Card>
 
         <Card>
-          <div className="card-eyebrow" style={{ marginBottom:16 }}><Icon name="award" size={14}/> Badges</div>
-          <div className="badge-grid">{BADGES.map((b) => {
+          <button onClick={isPhone ? () => setBadgesOpen((o) => !o) : undefined}
+            style={{ all:'unset', boxSizing:'border-box', width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', cursor: isPhone ? 'pointer' : 'default', marginBottom: (!isPhone || badgesOpen) ? 16 : 0 }}>
+            <div className="card-eyebrow" style={{ margin:0 }}><Icon name="award" size={14}/> Badges{isPhone && <span className="muted" style={{ fontWeight:600, textTransform:'none', letterSpacing:'normal' }}> · {earned.size} of {BADGES.length} earned</span>}</div>
+            {isPhone && <Icon name={badgesOpen ? 'chevron-down' : 'chevron-right'} size={18} style={{ color:'var(--text-subtle)' }} />}
+          </button>
+          {(!isPhone || badgesOpen) && <div className="badge-grid">{BADGES.map((b) => {
             const got = earned.has(b.id);
             const tones = { brand:'var(--grad-sunrise)', sage:'linear-gradient(145deg,#95C29B,#4F8E5C)', sky:'linear-gradient(145deg,#79BDCA,#38869A)' };
             return (
@@ -2633,7 +2834,7 @@ function Journey() {
                 <div className="muted" style={{ fontSize:'var(--text-xs)', marginTop:2 }}>{b.tag}</div>
               </div>
             );
-          })}</div>
+          })}</div>}
         </Card>
 
         {wins.length > 0 && (
@@ -2671,6 +2872,26 @@ function Journey() {
 }
 
 /* ---------- PROFILE / SETTINGS ---------- */
+function PatientMessages() {
+  const { ptPatient, sendMessageToPT, account } = useStore();
+  const [text, setText] = useState('');
+  const msgs = (ptPatient && ptPatient.messages) || [];
+  const send = () => { if (!text.trim()) return; sendMessageToPT(text); setText(''); };
+  return (
+    <Card>
+      <div className="card-eyebrow" style={{ marginBottom: 6 }}><Icon name="send" size={14} /> Message your PT</div>
+      <p className="muted" style={{ margin: '0 0 14px', fontSize: 'var(--text-sm)' }}>Need something specific from {account.center || 'your therapist'}? Send a note, they’ll see it on their dashboard.</p>
+      <div className="col" style={{ gap: 8, marginBottom: 14, maxHeight: 300, overflowY: 'auto' }}>
+        {msgs.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>No messages yet. Say hi or ask a question below.</p>}
+        {msgs.map((m) => <MsgBubble key={m.id} m={m} mine={m.from === 'patient'} />)}
+      </div>
+      <div className="row" style={{ gap: 10 }}>
+        <Input placeholder="Write a message…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} />
+        <Button variant="primary" size="sm" disabled={!text.trim()} onClick={send} iconLeft={<Icon name="send" size={15} />}>Send</Button>
+      </div>
+    </Card>
+  );
+}
 function Profile() {
   const { account, deleteMyData, signOut, addGoal, toggleGoal, removeGoal, updateProfile, connectCenter, disconnectCenter, setReminder } = useStore();
   const [goalInput, setGoalInput] = useState('');
@@ -2771,6 +2992,8 @@ function Profile() {
           </Card>
         )}
 
+        {account.mode === 'center' && <PatientMessages />}
+
         <Card variant="outline">
           <div className="row" style={{ gap:14, flexWrap:'wrap', justifyContent:'space-between' }}>
             <div><div style={{ fontWeight:700, color:'var(--text-strong)' }}>Account</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>Sign out, or delete your saved recovery data.</div></div>
@@ -2842,6 +3065,7 @@ function CustomExerciseForm({ onSave, onCancel }) {
   const [sets, setSets] = useState(3);
   const [reps, setReps] = useState(10);
   const [hold, setHold] = useState(20);
+  const [perDay, setPerDay] = useState(1);
   const [instructions, setInstructions] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const save = () => {
@@ -2849,6 +3073,7 @@ function CustomExerciseForm({ onSave, onCancel }) {
     const steps = instructions.split('\n').map((s) => s.trim()).filter(Boolean);
     onSave({ name: name.trim(), target: target.trim() || 'Custom', area: 'custom', thumb: 'mobility', type,
       sets: Number(sets) || 3, reps: Number(reps) || 10, holdSec: Number(hold) || 20, restSec: 40, durationMin: 3, level: 'Assigned',
+      timesPerDay: Math.max(1, Math.min(6, Number(perDay) || 1)),
       summary: steps[0] || 'Assigned by your therapist.', steps: steps.length ? steps : ['Follow your therapist’s guidance.'], cues: [], videoUrl: videoUrl.trim() });
   };
   return (
@@ -2861,6 +3086,7 @@ function CustomExerciseForm({ onSave, onCancel }) {
         <div><div className="field-label" style={{ fontSize: 'var(--text-sm)', marginBottom: 6 }}>Type</div><div className="row" style={{ gap: 6 }}>{[['reps', 'Reps'], ['hold', 'Hold']].map(([v, l]) => <button key={v} className="chip" data-on={type === v} onClick={() => setType(v)} style={{ fontSize: 'var(--text-xs)', padding: '8px 14px' }}>{l}</button>)}</div></div>
         <Input label="Sets" type="number" value={sets} onChange={(e) => setSets(e.target.value)} style={{ width: 88 }} />
         {type === 'reps' ? <Input label="Reps" type="number" value={reps} onChange={(e) => setReps(e.target.value)} style={{ width: 88 }} /> : <Input label="Hold (sec)" type="number" value={hold} onChange={(e) => setHold(e.target.value)} style={{ width: 110 }} />}
+        <Input label="Times a day" type="number" min="1" max="6" value={perDay} onChange={(e) => setPerDay(e.target.value)} style={{ width: 110 }} />
       </div>
       <Textarea label="How to do it (one step per line)" rows={3} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder={'Stand in a doorway, forearm on the frame.\nGently lean forward until you feel a stretch.\nHold and breathe, then switch.'} />
       <Input label="Video link (optional)" iconLeft={<Icon name="play" size={15} />} placeholder="YouTube or any how-to link" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} />
@@ -2869,6 +3095,65 @@ function CustomExerciseForm({ onSave, onCancel }) {
         <Button variant="primary" size="sm" disabled={!name.trim()} onClick={save} iconLeft={<Icon name="check" size={15} />}>Add to plan</Button>
       </div>
     </div>
+  );
+}
+function MsgBubble({ m, mine }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+      <div style={{ maxWidth: '82%', padding: '9px 13px', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', lineHeight: 1.45,
+        background: mine ? 'var(--brand)' : 'var(--surface-sunken)', color: mine ? 'var(--text-on-brand)' : 'var(--text-body)',
+        borderBottomRightRadius: mine ? 4 : 'var(--radius-md)', borderBottomLeftRadius: mine ? 'var(--radius-md)' : 4 }}>
+        <div>{m.text}</div>
+        <div style={{ fontSize: '10px', opacity: 0.7, marginTop: 3, textAlign: mine ? 'right' : 'left' }}>{shortDate(m.dateISO)}</div>
+      </div>
+    </div>
+  );
+}
+function PTExerciseRow({ p, e, api }) {
+  const th = THUMBS[e.thumb] || THUMBS.quad;
+  const fb = (p.feedback || {})[e.id];
+  const f = fb && FEEDBACK[fb.rating];
+  const currentVideo = (p.videos && p.videos[e.id]) || (e.custom ? (e.videoUrl || '') : '') || '';
+  const [vidOpen, setVidOpen] = useState(false);
+  const [vid, setVid] = useState(currentVideo);
+  return (
+    <div className="pt-ex-row" style={{ flexWrap: 'wrap' }}>
+      <span className="lib-thumb" style={{ background: th.grad }}><Icon name={th.icon} size={20} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, color: 'var(--text-strong)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>{e.name}{e.custom && <Badge tone="sky">Custom</Badge>}{currentVideo && <Badge tone="neutral">Video</Badge>}</div>
+        <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>{e.target} · {e.type === 'hold' ? e.holdSec + 's hold' : e.reps + ' reps'} × {e.sets}{e.timesPerDay > 1 ? ` · ${e.timesPerDay}× a day` : ''}</div>
+        {f && <span className="fb-badge" style={{ marginTop: 6, color: f.color, background: `color-mix(in srgb, ${f.color} 14%, var(--surface))` }}><Icon name={f.icon} size={12} /> Patient: {f.label.toLowerCase()}</span>}
+      </div>
+      <div className="row" style={{ gap: 2, flex: '0 0 auto' }}>
+        <button className="icon-btn" title={currentVideo ? 'Edit demo video' : 'Add a demo video'} onClick={() => { setVid(currentVideo); setVidOpen((o) => !o); }} style={currentVideo ? { color: 'var(--brand)' } : undefined}><Icon name="play" size={15} /></button>
+        <button className="icon-btn" title="Remove" onClick={() => api.ptUnassignExercise(p.uid, e.id)}><Icon name="x" size={16} /></button>
+      </div>
+      {vidOpen && (
+        <div style={{ flexBasis: '100%', marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <Input placeholder="Paste a YouTube or any how-to link" value={vid} onChange={(ev) => setVid(ev.target.value)} iconLeft={<Icon name="play" size={15} />} style={{ flex: 1, minWidth: 200 }} />
+          <Button variant="primary" size="sm" onClick={() => { api.ptSetVideo(p.uid, e.id, vid); setVidOpen(false); }} iconLeft={<Icon name="check" size={15} />}>Save</Button>
+          {currentVideo && <Button variant="ghost" size="sm" onClick={() => { api.ptSetVideo(p.uid, e.id, ''); setVid(''); setVidOpen(false); }}>Clear</Button>}
+        </div>
+      )}
+    </div>
+  );
+}
+function PTMessages({ p, api, ping }) {
+  const [text, setText] = useState('');
+  const msgs = p.messages || [];
+  const send = () => { if (!text.trim()) return; api.ptReply(p.uid, text); setText(''); ping('Reply sent'); };
+  return (
+    <Card>
+      <div className="card-eyebrow" style={{ marginBottom: 14 }}><Icon name="send" size={14} /> Messages with {(p.name || 'patient').split(' ')[0]}</div>
+      <div className="col" style={{ gap: 8, marginBottom: 14, maxHeight: 300, overflowY: 'auto' }}>
+        {msgs.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>No messages yet. If your patient needs something specific, their message lands here.</p>}
+        {msgs.map((m) => <MsgBubble key={m.id} m={m} mine={m.from === 'therapist'} />)}
+      </div>
+      <div className="row" style={{ gap: 10 }}>
+        <Input placeholder="Write a reply…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} />
+        <Button variant="primary" size="sm" disabled={!text.trim()} onClick={send} iconLeft={<Icon name="send" size={15} />}>Send</Button>
+      </div>
+    </Card>
   );
 }
 function PatientPanel({ p, api, ping }) {
@@ -2906,6 +3191,8 @@ function PatientPanel({ p, api, ping }) {
         {lr && <div className="row" style={{ gap: 12, marginTop: 14, flexWrap: 'wrap' }}><Badge tone="sage" dot>Last session {shortDate(lr.dateISO)}</Badge><span className="muted" style={{ fontSize: 'var(--text-sm)' }}>{lr.completed}/{lr.total} exercises · {lr.minutes} min</span></div>}
       </Card>
 
+      <RoadBack milestones={p.milestones || []} onUpdate={(list) => api.ptSetMilestones(p.uid, list)} ownerName={(p.name || 'Patient').split(' ')[0]} injuryLabel={p.injuryLabel} />
+
       <Card>
         <div className="card-head" style={{ marginBottom: 14 }}>
           <div className="card-eyebrow" style={{ margin: 0 }}><Icon name="dumbbell" size={14} /> Assigned exercises</div>
@@ -2918,19 +3205,11 @@ function PatientPanel({ p, api, ping }) {
         {customOpen && <CustomExerciseForm onSave={(ex) => { api.ptAddCustomExercise(p.uid, ex); setCustomOpen(false); ping('Exercise added to their plan'); }} onCancel={() => setCustomOpen(false)} />}
         <div className="col" style={{ gap: 10 }}>
           {items.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>No exercises assigned yet. Add from the library or create a custom one with your own instructions and a video.</p>}
-          {items.map((e) => { const th = THUMBS[e.thumb] || THUMBS.quad; const fb = (p.feedback || {})[e.id]; const f = fb && FEEDBACK[fb.rating]; return (
-            <div key={e.id} className="pt-ex-row">
-              <span className="lib-thumb" style={{ background: th.grad }}><Icon name={th.icon} size={20} /></span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, color: 'var(--text-strong)' }}>{e.name}{e.custom && <Badge tone="sky" style={{ marginLeft: 8 }}>Custom</Badge>}{e.videoUrl && <Badge tone="neutral" style={{ marginLeft: 6 }}>Video</Badge>}</div>
-                <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>{e.target} · {e.type === 'hold' ? e.holdSec + 's hold' : e.reps + ' reps'} × {e.sets}</div>
-                {f && <span className="fb-badge" style={{ marginTop: 6, color: f.color, background: `color-mix(in srgb, ${f.color} 14%, var(--surface))` }}><Icon name={f.icon} size={12} /> Patient: {f.label.toLowerCase()}</span>}
-              </div>
-              <button className="icon-btn" title="Remove" onClick={() => api.ptUnassignExercise(p.uid, e.id)}><Icon name="x" size={16} /></button>
-            </div>
-          ); })}
+          {items.map((e) => <PTExerciseRow key={e.id} p={p} e={e} api={api} />)}
         </div>
       </Card>
+
+      <PTMessages p={p} api={api} ping={ping} />
 
       <Card>
         <div className="card-eyebrow" style={{ marginBottom: 14 }}><Icon name="heart-handshake" size={14} /> Notes & tips</div>
@@ -2960,12 +3239,22 @@ function PatientPanel({ p, api, ping }) {
   );
 }
 function TherapistDashboard() {
-  const { account, link, refreshLink, signOut, ptAssignExercise, ptUnassignExercise, ptAddCustomExercise, ptAddNote, ptRemoveNote } = useStore();
+  const { account, link, refreshLink, signOut, ptAssignExercise, ptUnassignExercise, ptAddCustomExercise, ptAddNote, ptRemoveNote, ptSetVideo, ptReply, ptSetMilestones, setReportPref } = useStore();
   const patients = (link && link.patients) ? Object.values(link.patients) : [];
   const [selUid, setSelUid] = useState(patients[0] ? patients[0].uid : null);
   const [toast, setToast] = useState(null);
   const sel = patients.find((p) => p.uid === selUid) || patients[0] || null;
-  const ptApi = { ptAssignExercise, ptUnassignExercise, ptAddCustomExercise, ptAddNote, ptRemoveNote };
+  const ptApi = { ptAssignExercise, ptUnassignExercise, ptAddCustomExercise, ptAddNote, ptRemoveNote, ptSetVideo, ptReply, ptSetMilestones };
+  const reportPref = account.reportPref || 'concerns';
+  // Pull together the exercises patients flagged as too easy / tough / painful, for the "needs attention" view.
+  const CONCERN = new Set(['easy', 'hard', 'hurt']);
+  const flags = reportPref === 'off' ? [] : patients.flatMap((pt) => {
+    const exMap = { ...EXERCISES, ...(pt.customEx || {}) };
+    return Object.entries(pt.feedback || {})
+      .filter(([, fb]) => reportPref === 'all' ? true : CONCERN.has(fb.rating))
+      .map(([exId, fb]) => ({ patient: pt, ex: exMap[exId], fb }))
+      .filter((x) => x.ex);
+  });
 
   useEffect(() => { refreshLink(); }, []);
   useEffect(() => { if (!selUid && patients[0]) setSelUid(patients[0].uid); }, [link]);
@@ -3001,6 +3290,38 @@ function TherapistDashboard() {
             </div>
             <span className="report-ic" style={{ width: 64, height: 64, borderRadius: 'var(--radius-lg)' }}><Icon name="heart-handshake" size={28} /></span>
           </div>
+
+          <Card>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div>
+                <div className="card-eyebrow" style={{ margin: 0 }}><Icon name="bell" size={14} /> Exercise feedback reports</div>
+                <p className="muted" style={{ margin: '6px 0 0', fontSize: 'var(--text-sm)', maxWidth: '48ch' }}>Choose how much you hear when patients mark an exercise too easy, tough, or painful.</p>
+              </div>
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                {[['all', 'All feedback'], ['concerns', 'Only concerns'], ['off', 'Off']].map(([v, l]) => (
+                  <button key={v} className="chip" data-on={reportPref === v} onClick={() => setReportPref(v)} style={{ fontSize: 'var(--text-xs)', padding: '8px 14px' }}>{l}</button>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          {flags.length > 0 && (
+            <Card style={{ borderColor: 'var(--apricot-200)', background: 'var(--surface-brand)' }}>
+              <div className="card-eyebrow" style={{ marginBottom: 12, color: 'var(--brand-soft-text)' }}><Icon name="info" size={14} /> Worth a look ({flags.length})</div>
+              <div className="col" style={{ gap: 10 }}>
+                {flags.map((x, i) => { const f = FEEDBACK[x.fb.rating]; return (
+                  <button key={i} className="pt-ex-row" style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }} onClick={() => setSelUid(x.patient.uid)}>
+                    <span className="fb-badge" style={{ color: f.color, background: `color-mix(in srgb, ${f.color} 14%, var(--surface))`, flex: '0 0 auto' }}><Icon name={f.icon} size={12} /> {f.label}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-strong)', fontSize: 'var(--text-sm)' }}>{x.ex.name}</div>
+                      <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>{x.patient.name || 'Patient'} · {shortDate(x.fb.dateISO)}</div>
+                    </div>
+                    <Icon name="chevron-right" size={16} style={{ color: 'var(--text-subtle)', flex: '0 0 auto' }} />
+                  </button>
+                ); })}
+              </div>
+            </Card>
+          )}
 
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <h3 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: 'var(--text-lg)' }}>Your patients</h3>
@@ -3068,7 +3389,8 @@ function App() {
     if (route === '/signup') return <Auth kind="signup" />;
     if (route === '/join') return <Auth kind="join" />;
     if (route === '/pt-signup') return <Auth kind="therapist" />;
-    return <Landing />;
+    // The phone app opens straight into sign-in (the marketing landing page is for the website).
+    return isNative() ? <Auth kind="login" /> : <Landing />;
   }
   // Therapists only ever see their dashboard.
   if (account.role === 'therapist') return <TherapistDashboard />;
@@ -3105,6 +3427,10 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   .r-btn:focus-visible{outline:none; box-shadow:var(--focus-ring);}
   .r-input::placeholder,.r-textarea::placeholder{color:var(--text-subtle);}
   .r-input:focus,.r-textarea:focus{border-color:var(--brand); box-shadow:var(--focus-ring);}
+  /* iOS renders inputs with its own metrics that vertically clip the text in a
+     fixed-height box; reset that so typed text + placeholders aren't cut off. */
+  .r-input,.r-textarea{-webkit-appearance:none; appearance:none; line-height:normal; box-sizing:border-box;}
+  .r-input{line-height:1.2;}
   .r-mood:hover span:first-child{border-color:var(--border-brand);}
   .r-mood:focus-visible{outline:none;}
   .r-card--hover:hover{transform:translateY(-3px); box-shadow:var(--shadow-lg);}
