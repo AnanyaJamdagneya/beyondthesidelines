@@ -2600,6 +2600,7 @@ function useIsPhone() {
 function MoodTrend({ journal }) {
   // weekly averages over the last ~5 weeks
   const [sel, setSel] = useState(null);
+  const isPhone = useIsPhone();
   const dates = Object.keys(journal).sort();
   if (dates.length < 2) return null;
   const buckets = {};
@@ -2611,7 +2612,9 @@ function MoodTrend({ journal }) {
   const recent = Object.keys(buckets).map(Number).sort((a,b)=>a-b).slice(0,5); // 5 most recent (0=this wk)
   const weeks = recent.slice().reverse(); // oldest on the left, this week on the right
   const pts = weeks.map((wk) => { const arr = buckets[wk]; return arr.reduce((a,b)=>a+b,0)/arr.length; });
-  const W=520, H=150, padX=30, padY=24;
+  // Bigger, taller chart on the phone (the website keeps its compact wide version).
+  const W = isPhone ? 360 : 520, H = isPhone ? 240 : 150, padX = 30, padY = isPhone ? 30 : 24;
+  const ptR = isPhone ? 6 : 4.5, lineW = isPhone ? 4 : 3, labelFS = isPhone ? 15 : 11, selR = isPhone ? 8.5 : 6.5, tipFS = isPhone ? 15 : 12.5, tipH = isPhone ? 30 : 26;
   const x=(i)=>padX+i*((W-padX*2)/Math.max(1,pts.length-1));
   const y=(v)=>padY+(1-(v-1)/4)*(H-padY*2);
   const P = pts.map((v,i)=>[x(i),y(v)]);
@@ -2622,18 +2625,18 @@ function MoodTrend({ journal }) {
       <defs><linearGradient id="jtrend" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--brand)" stopOpacity="0.2"/><stop offset="100%" stopColor="var(--brand)" stopOpacity="0"/></linearGradient></defs>
       {[1,2,3,4,5].map((v)=><line key={v} x1={padX} x2={W-padX} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4"/>)}
       <path d={area} fill="url(#jtrend)"/>
-      <path d={line} fill="none" stroke="var(--brand)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-      {P.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r="4.5" fill="var(--surface)" stroke="var(--brand)" strokeWidth="2.5"/>)}
-      {weeks.map((wk,i)=><text key={i} x={x(i)} y={H-4} textAnchor="middle" fontSize="11" fill="var(--text-subtle)">{wk===0?'This wk':wk+'w ago'}</text>)}
-      {/* tap or hover a point to read its value (helps on the small phone chart) */}
-      {P.map((p,i)=><circle key={'t'+i} cx={p[0]} cy={p[1]} r="18" fill="transparent" style={{cursor:'pointer'}}
+      <path d={line} fill="none" stroke="var(--brand)" strokeWidth={lineW} strokeLinecap="round" strokeLinejoin="round"/>
+      {P.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r={ptR} fill="var(--surface)" stroke="var(--brand)" strokeWidth="2.5"/>)}
+      {weeks.map((wk,i)=><text key={i} x={x(i)} y={H-(isPhone?8:4)} textAnchor="middle" fontSize={labelFS} fill="var(--text-subtle)">{wk===0?'This wk':wk+'w ago'}</text>)}
+      {/* tap or hover a point to read its value */}
+      {P.map((p,i)=><circle key={'t'+i} cx={p[0]} cy={p[1]} r="22" fill="transparent" style={{cursor:'pointer'}}
         onClick={()=>setSel(sel===i?null:i)} onMouseEnter={()=>setSel(i)} onMouseLeave={()=>setSel(null)} />)}
-      {sel!=null && <circle cx={P[sel][0]} cy={P[sel][1]} r="6.5" fill="var(--brand)" stroke="var(--surface)" strokeWidth="2.5" style={{pointerEvents:'none'}}/>}
+      {sel!=null && <circle cx={P[sel][0]} cy={P[sel][1]} r={selR} fill="var(--brand)" stroke="var(--surface)" strokeWidth="2.5" style={{pointerEvents:'none'}}/>}
       {sel!=null && (()=>{
         const p=P[sel], v=pts[sel];
         const txt=`${v.toFixed(1)} avg · ${weeks[sel]===0?'this week':weeks[sel]+'w ago'}`;
-        const tw=txt.length*6.6+18, tx=Math.max(padX,Math.min(W-padX-tw,p[0]-tw/2)), ty=p[1]-36<2?p[1]+16:p[1]-36;
-        return <g style={{pointerEvents:'none'}}><rect x={tx} y={ty} width={tw} height="26" rx="8" fill="var(--ink)"/><text x={tx+tw/2} y={ty+17} textAnchor="middle" fontSize="12.5" fontWeight="600" fill="#fff">{txt}</text></g>;
+        const tw=txt.length*(tipFS*0.6)+18, tx=Math.max(padX,Math.min(W-padX-tw,p[0]-tw/2)), ty=(p[1]-tipH-10<2)?p[1]+12:p[1]-tipH-10;
+        return <g style={{pointerEvents:'none'}}><rect x={tx} y={ty} width={tw} height={tipH} rx="8" fill="var(--ink)"/><text x={tx+tw/2} y={ty+tipH*0.68} textAnchor="middle" fontSize={tipFS} fontWeight="600" fill="#fff">{txt}</text></g>;
       })()}
     </svg>
   );
