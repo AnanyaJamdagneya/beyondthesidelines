@@ -3,6 +3,10 @@
   "appName": "Beyond the Sidelines",
   "webDir": "www",
   "backgroundColor": "#FFFBF6",
+  "server": {
+    "iosScheme": "https",
+    "androidScheme": "https"
+  },
   "ios": {
     "contentInset": "always"
   },

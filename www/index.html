@@ -1481,7 +1481,7 @@ function Auth({ kind }) {
           <h1 className="auth-h">{title}</h1>
           <p className="muted" style={{ margin:'4px 0 22px' }}>{sub}</p>
 
-          {fbReady && (
+          {fbReady && !isNative() && (
             <>
               <Button variant="secondary" size="lg" full disabled={busy} onClick={google} iconLeft={<GoogleG size={18}/>}>
                 {isSignin ? 'Sign in with Google' : 'Continue with Google'}
@@ -3411,7 +3411,7 @@ window.addEventListener('load', () => setTimeout(() => { const s = document.getE
 setTimeout(() => { const s = document.getElementById('splash'); if (s) s.classList.add('hide'); }, 1500);
 // Register the service worker so the app is installable and works offline.
 // Skipped on file:// (only works when served over http/https).
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !isNative()) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 </script>
