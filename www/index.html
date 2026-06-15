@@ -1397,7 +1397,8 @@ function Landing() {
             <div><Logo size={30} tone="white" /><p className="footer-tag" style={{ marginTop:18 }}>Recovery is more than reps.</p></div>
             <div className="footer-links">
               <div className="footer-col"><h4>Product</h4><a onClick={()=>go('/signup')}>Sign up</a><a onClick={()=>go('/join')}>Center code</a><a onClick={()=>go('/login')}>Sign in</a></div>
-              <div className="footer-col"><h4>For clinics</h4><a onClick={()=>go('/pt-signup')}>Set up your clinic</a><a onClick={()=>go('/pt-signup')}>Progress reports</a><a>Privacy</a></div>
+              <div className="footer-col"><h4>For clinics</h4><a onClick={()=>go('/pt-signup')}>Set up your clinic</a><a onClick={()=>go('/pt-signup')}>Progress reports</a></div>
+              <div className="footer-col"><h4>Legal</h4><a onClick={()=>go('/privacy')}>Privacy Policy</a><a onClick={()=>go('/terms')}>Terms of Use</a></div>
               <div className="footer-col"><h4>About</h4><a>Our mission</a><a>Non-profit</a><a>Contact</a></div>
             </div>
           </div>
@@ -1519,6 +1520,11 @@ function Auth({ kind }) {
             <Button variant="primary" size="lg" full disabled={busy} onClick={submit} iconRight={busy ? null : <Icon name="arrow-right" size={18}/>}>
               {busy ? 'One moment…' : cta}
             </Button>
+            {!isSignin && (
+              <p className="muted center" style={{ fontSize:'var(--text-xs)', lineHeight:1.5, margin:0 }}>
+                By creating an account, you agree to our <span className="auth-link" onClick={()=>go('/terms')}>Terms</span> and <span className="auth-link" onClick={()=>go('/privacy')}>Privacy Policy</span>.
+              </p>
+            )}
           </div>
 
           <div className="center" style={{ marginTop:18, fontSize:'var(--text-sm)' }}>
@@ -3435,6 +3441,59 @@ function FullLoader() {
     </div>
   );
 }
+const LEGAL = {
+  privacy: {
+    title: 'Privacy Policy', updated: 'June 15, 2026',
+    intro: 'Beyond the Sidelines helps you pair physical-therapy exercises with private journaling. This policy explains, plainly, what we collect and how we use it.',
+    sections: [
+      { h: 'What we collect', list: [
+        'Account info: your name and email (or, if you sign in with Google, the name and email Google shares with us).',
+        'Your recovery info: the injury and areas you choose, your limits, goals, and milestones.',
+        'Your activity: exercise progress and session reports, and your journal entries — mood, pain, notes, small wins, and any optional photos you add.' ] },
+      { h: 'How we use it', p: 'Only to run the app for you: to save your progress, sync it across your devices, and show you your trends. We do not sell your data, and we never use it for advertising.' },
+      { h: 'Where it’s stored', p: 'Your data is stored securely with Google Firebase (Cloud Firestore and Firebase Authentication) and encrypted in transit.' },
+      { h: 'What your PT can and can’t see', p: 'If you connect to a physical-therapy center with a code, your therapist can see the exercises they assign you, your exercise progress and feedback, and messages you send them. Your journal, mood, pain, and reflections stay private to you — your PT never sees them. You can disconnect from a center at any time.' },
+      { h: 'Your choices', p: 'You can edit your information in the app anytime, turn off a PT connection once you’ve healed, and permanently erase your journal, progress, and goals with Profile → Delete my data.' },
+      { h: 'Children', p: 'The app isn’t directed to children under 13, and we don’t knowingly collect their information.' },
+      { h: 'Changes', p: 'If this policy changes, we’ll update this page and the date above.' },
+      { h: 'Contact', p: 'Questions? Email us at support@beyond-the-sidelines.com.' },
+    ],
+  },
+  terms: {
+    title: 'Terms of Use', updated: 'June 15, 2026',
+    intro: 'By creating an account or using Beyond the Sidelines, you agree to these terms. If you don’t agree, please don’t use the app.',
+    sections: [
+      { h: 'What this is', p: 'Beyond the Sidelines is a wellness and recovery companion to help you stay consistent with your exercises and check in with how you’re feeling.' },
+      { h: 'Not medical advice', p: 'The app and its content are for general wellness and do not replace professional medical care. Always follow the guidance of your physician or physical therapist, and don’t start, stop, or change treatment based on the app. Stop any exercise that causes pain and check with your provider. In an emergency, call your local emergency number (911 in the US).' },
+      { h: 'Working with a PT', p: 'If you connect to a center, the app helps you share exercise information with the therapist you choose. We are not a healthcare provider and are not responsible for the care, advice, or exercises your PT provides.' },
+      { h: 'Your account', p: 'Keep your password private — you’re responsible for activity under your account. Let us know if you suspect someone else has accessed it.' },
+      { h: 'Acceptable use', p: 'Use the app for your own recovery and wellness. Don’t misuse it, try to break it, or use it to harm others.' },
+      { h: 'The app is provided “as is”', p: 'We work hard to keep the app reliable, but we provide it “as is,” without warranties, and to the extent the law allows we aren’t liable for losses arising from its use.' },
+      { h: 'Changes', p: 'We may update these terms; we’ll revise the date above when we do.' },
+      { h: 'Contact', p: 'Reach us at support@beyond-the-sidelines.com.' },
+    ],
+  },
+};
+function LegalPage({ doc }) {
+  const d = LEGAL[doc] || LEGAL.privacy;
+  return (
+    <div className="lp-body" style={{ minHeight: '100vh' }}>
+      <div className="container-narrow" style={{ paddingTop: 'calc(28px + env(safe-area-inset-top))', paddingBottom: 56 }}>
+        <button onClick={() => { try { history.back(); } catch (e) { go('/'); } }} className="auth-link row" style={{ background: 'none', border: 'none', gap: 6, marginBottom: 18, fontSize: 'var(--text-sm)' }}><Icon name="arrow-left" size={15} /> Back</button>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', color: 'var(--text-strong)', margin: '0 0 4px' }}>{d.title}</h1>
+        <p className="muted" style={{ margin: '0 0 24px', fontSize: 'var(--text-sm)' }}>Last updated {d.updated}</p>
+        <p style={{ color: 'var(--text-body)', lineHeight: 1.65, marginBottom: 22 }}>{d.intro}</p>
+        {d.sections.map((s, i) => (
+          <div key={i} style={{ marginBottom: 22 }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', color: 'var(--text-strong)', margin: '0 0 8px' }}>{s.h}</h2>
+            {s.p && <p style={{ color: 'var(--text-body)', lineHeight: 1.65, margin: 0 }}>{s.p}</p>}
+            {s.list && <ul style={{ color: 'var(--text-body)', lineHeight: 1.6, margin: 0, paddingLeft: 20 }}>{s.list.map((li, j) => <li key={j} style={{ marginBottom: 6 }}>{li}</li>)}</ul>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 function App() {
   const { account, session, authReady } = useStore();
   const route = useRoute();
@@ -3444,6 +3503,10 @@ function App() {
 
   // Wait for the auth check (restoring a logged-in session) before deciding what to show.
   if (!authReady) return <FullLoader />;
+
+  // Legal pages, reachable whether signed in or out.
+  if (route === '/privacy') return <LegalPage doc="privacy" />;
+  if (route === '/terms') return <LegalPage doc="terms" />;
 
   // Logged out
   if (!loggedIn) {
