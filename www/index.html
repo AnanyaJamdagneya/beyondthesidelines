@@ -795,9 +795,16 @@ function StoreProvider({ children }) {
               { id: 'k3', label: 'Stairs without the rail', done: false, doneISO: null },
               { id: 'k4', label: 'Light jog', done: false, doneISO: null },
               { id: 'k5', label: 'Back to full activity', done: false, doneISO: null } ],
-            graduated: [ { id: 'quadset', name: 'Quad sets', dateISO: daysAgoISO(20) }, { id: 'heelslide', name: 'Heel slides', dateISO: daysAgoISO(9) } ] }),
+            graduated: [ { id: 'quadset', name: 'Quad sets', dateISO: daysAgoISO(20) }, { id: 'heelslide', name: 'Heel slides', dateISO: daysAgoISO(9) } ],
+            reports: [
+              { dateISO: daysAgoISO(1), completed: 4, total: 5, minutes: 18, pain: 6, note: 'The hamstring curls really pulled on the left side today, had to stop a set early.' },
+              { dateISO: daysAgoISO(3), completed: 5, total: 5, minutes: 20, pain: 3, note: '' },
+              { dateISO: daysAgoISO(5), completed: 5, total: 5, minutes: 17, pain: 2, note: 'Felt strong — stairs were noticeably easier.' } ] }),
         p2: mkP('p2', 'James Rivera', 'shoulder', 'Right shoulder', ['pendulum', 'scapsqueeze', 'wallwalk'], {}, []),
-        p3: mkP('p3', 'Dana Brooks', 'ankle', 'Left ankle', ['anklecircles', 'calf'], {}, [{ id: 'n2', text: 'Nice progress on the balance work. Add the heel raises when ready.', type: 'cheer', dateISO: daysAgoISO(4) }]),
+        p3: mkP('p3', 'Dana Brooks', 'ankle', 'Left ankle', ['anklecircles', 'calf'], {}, [{ id: 'n2', text: 'Nice progress on the balance work. Add the heel raises when ready.', type: 'cheer', dateISO: daysAgoISO(4) }],
+          { reports: [
+            { dateISO: daysAgoISO(2), completed: 2, total: 2, minutes: 9, pain: 2, note: 'Ankle felt stable, no swelling after.' },
+            { dateISO: daysAgoISO(4), completed: 2, total: 2, minutes: 8, pain: 3, note: '' } ] }),
       } });
       setAccount({ ...emptyAccount({ name: 'Dr. Priya Anand', email: 'priya@demo.app' }), role: 'therapist', clinic, code, onboarded: true, demo: true, createdAt: Date.now() - 40 * 86400000 });
       go('/pt');
@@ -912,7 +919,13 @@ function StoreProvider({ children }) {
     sendReport(iso, payload) {
       patch((a) => ({ ...a, sessions: { ...a.sessions, [iso]: { ...payload, sent: true } } }));
       const uid = uidRef.current; const l = linkRef.current;
-      if (l && l.patients && l.patients[uid]) commitLink({ ...l, patients: { ...l.patients, [uid]: { ...l.patients[uid], lastReport: { ...payload, dateISO: iso } } } });
+      if (l && l.patients && l.patients[uid]) {
+        const meNow = l.patients[uid];
+        const report = { ...payload, dateISO: iso };
+        // Keep a rolling history (last 30) so the PT can see weekly pain + notes.
+        const reports = [report, ...((meNow.reports || []).filter((r) => r.dateISO !== iso))].slice(0, 30);
+        commitLink({ ...l, patients: { ...l.patients, [uid]: { ...meNow, lastReport: report, reports } } });
+      }
     },
     markNotesRead() { const ids = careNotes.map((n) => n.id); patch((a) => ({ ...a, seenNotes: Array.from(new Set([...(a.seenNotes || []), ...ids])) })); },
     // Patient edits their own Road Back checkpoints. Writes to the shared link when
@@ -1169,6 +1182,8 @@ function celebrate() {
     ], { duration: dur, easing: 'cubic-bezier(.2,.6,.4,1)' }).onfinish = () => p.remove();
   }
 }
+// 0–10 pain scale colour: green (low) → amber (moderate) → red (high).
+function painColor(n) { return n <= 3 ? '#6BA368' : n <= 6 ? '#E0A33E' : '#D85C43'; }
 // Read an image file, shrink it to keep storage small, return a JPEG data URL.
 function readResizedImage(file, maxDim = 900, quality = 0.72) {
   return new Promise((resolve, reject) => {
@@ -2382,6 +2397,8 @@ function Exercises() {
   const [toast, setToast] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
+  const [pain, setPain] = useState(null);
+  const [sessNote, setSessNote] = useState('');
   const dragRef = useRef(null);
   const progress = account.progress[iso] || {};
   const dayRounds = (account.dayRounds || {})[iso] || {};
@@ -2419,9 +2436,9 @@ function Exercises() {
 
   const ping = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
   const finish = () => {
-    sendReport(iso, { completed, total, minutes });
+    sendReport(iso, { completed, total, minutes, pain: pain == null ? 0 : pain, note: sessNote.trim() });
     celebrate();
-    ping(account.mode === 'center' ? `Report sent to ${account.center}` : 'Session saved. Nicely done.');
+    ping(account.mode === 'center' ? `Check-in sent to ${account.center}` : 'Session saved. Nicely done.');
   };
 
   return (
@@ -2468,17 +2485,32 @@ function Exercises() {
           )}
         </Card>
 
-        {doneAll && (
+        {doneAll && alreadySent && (
           <div className="report-banner">
-            <span className="report-ic"><Icon name={alreadySent ? 'check' : 'send'} size={22}/></span>
+            <span className="report-ic"><Icon name="check" size={22}/></span>
             <div style={{ flex:1 }}>
-              <div style={{ fontFamily:'var(--font-display)', fontWeight:700, color:'var(--text-strong)' }}>{alreadySent ? 'All done for today' : 'Session complete, nice work'}</div>
-              <div className="muted" style={{ fontSize:'var(--text-sm)' }}>{account.mode === 'center'
-                ? (alreadySent ? `Today’s report is on its way to ${account.center}.` : `Send today’s progress to ${account.center}. Your journal stays private.`)
-                : (alreadySent ? 'Saved to your progress. See it on your journey.' : 'Save today’s session to your progress.')}</div>
+              <div style={{ fontFamily:'var(--font-display)', fontWeight:700, color:'var(--text-strong)' }}>All done for today</div>
+              <div className="muted" style={{ fontSize:'var(--text-sm)' }}>{account.mode === 'center' ? `Your check-in is on its way to ${account.center}.` : 'Saved to your progress. See it on your journey.'}</div>
             </div>
-            {!alreadySent && <Button variant="primary" onClick={finish} iconRight={<Icon name="arrow-right" size={17}/>}>{account.mode === 'center' ? 'Send report' : 'Save session'}</Button>}
           </div>
+        )}
+        {doneAll && !alreadySent && (
+          <Card>
+            <div className="card-eyebrow" style={{ marginBottom:6 }}><Icon name="check-circle" size={14}/> Session complete — quick check-in</div>
+            <h3 style={{ fontFamily:'var(--font-display)', margin:'0 0 4px', fontSize:'var(--text-xl)' }}>How did your body feel today?</h3>
+            <p className="muted" style={{ margin:'0 0 16px', fontSize:'var(--text-sm)' }}>{account.mode === 'center' ? `This goes to ${account.center} with your session — your journal stays private.` : 'We’ll track this on your journey over time.'}</p>
+            <div className="field-label" style={{ fontSize:'var(--text-sm)', marginBottom:10 }}>Pain level after these exercises</div>
+            <div className="row" style={{ gap:6, flexWrap:'wrap' }}>
+              {Array.from({ length: 11 }).map((_, n) => { const on = pain === n; const c = painColor(n); return (
+                <button key={n} onClick={() => setPain(n)} aria-label={`Pain ${n}`} style={{ width:38, height:38, borderRadius:'50%', border:`2px solid ${on ? c : 'var(--border)'}`, background: on ? c : 'var(--surface)', color: on ? '#fff' : 'var(--text-body)', fontWeight:700, fontSize:'var(--text-sm)', cursor:'pointer', transition:'all .15s' }}>{n}</button>
+              ); })}
+            </div>
+            <div className="row" style={{ justifyContent:'space-between', marginTop:7 }}><span className="muted" style={{ fontSize:'var(--text-xs)' }}>No pain</span><span className="muted" style={{ fontSize:'var(--text-xs)' }}>Worst pain</span></div>
+            <div className="field-label" style={{ fontSize:'var(--text-sm)', margin:'18px 0 8px' }}>{account.mode === 'center' ? 'A quick note for your PT' : 'A quick note to yourself'} <span className="muted" style={{ fontWeight:500 }}>(optional)</span></div>
+            <Textarea value={sessNote} onChange={(e) => setSessNote(e.target.value)} placeholder="e.g. Left knee twinged on the lunges, everything else felt good." rows={2} maxLength={400} />
+            <Button variant="primary" full onClick={finish} disabled={pain == null} style={{ marginTop:14 }} iconRight={<Icon name="arrow-right" size={17}/>}>{account.mode === 'center' ? `Send check-in to ${account.center}` : 'Save session'}</Button>
+            {pain == null && <p className="muted center" style={{ fontSize:'var(--text-xs)', margin:'10px 0 0' }}>Tap a pain level to {account.mode === 'center' ? 'send' : 'save'}.</p>}
+          </Card>
         )}
 
         <div className="col" style={{ gap:14 }}>
@@ -3347,6 +3379,44 @@ function PTMessages({ p, api, ping }) {
     </Card>
   );
 }
+// PT-facing weekly digest of the patient's post-session pain ratings + notes.
+function WeeklyCheckin({ p }) {
+  const reports = (p.reports || []).slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+  if (!reports.length) return null;
+  const wkStart = daysAgoISO(6);
+  const wk = reports.filter((r) => r.dateISO >= wkStart);
+  const pains = wk.filter((r) => typeof r.pain === 'number').map((r) => r.pain);
+  const avgPain = pains.length ? Math.round((pains.reduce((a, b) => a + b, 0) / pains.length) * 10) / 10 : null;
+  const notes = wk.filter((r) => r.note && r.note.trim());
+  const prevStart = daysAgoISO(13);
+  const prev = reports.filter((r) => r.dateISO >= prevStart && r.dateISO < wkStart);
+  const prevPains = prev.filter((r) => typeof r.pain === 'number').map((r) => r.pain);
+  const prevAvg = prevPains.length ? prevPains.reduce((a, b) => a + b, 0) / prevPains.length : null;
+  const trend = (avgPain != null && prevAvg != null) ? (avgPain < prevAvg - 0.3 ? 'down' : avgPain > prevAvg + 0.3 ? 'up' : 'flat') : null;
+  const useWk = wk.length ? wk : reports.slice(0, 5);
+  return (
+    <Card>
+      <div className="card-eyebrow" style={{ marginBottom: 14 }}><Icon name="activity" size={14} /> Weekly check-in <span className="muted" style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· {wk.length ? 'last 7 days' : 'recent'}</span></div>
+      <div className="stat-grid" style={{ marginBottom: notes.length ? 18 : 0 }}>
+        <div className="stat-card"><div className="stat-num">{useWk.length}</div><div className="stat-label">sessions</div></div>
+        <div className="stat-card"><div className="stat-num" style={{ color: avgPain == null ? 'var(--text-subtle)' : painColor(Math.round(avgPain)) }}>{avgPain == null ? '—' : avgPain}</div><div className="stat-label">avg pain /10</div></div>
+        <div className="stat-card"><div className="row" style={{ gap: 6, alignItems: 'center' }}>{trend === 'down' && <Icon name="trending-down" size={18} style={{ color: '#6BA368' }} />}{trend === 'up' && <Icon name="trending-up" size={18} style={{ color: '#D85C43' }} />}<div className="stat-num" style={{ fontSize: 'var(--text-md)' }}>{trend === 'down' ? 'Easing' : trend === 'up' ? 'Rising' : trend === 'flat' ? 'Steady' : '—'}</div></div><div className="stat-label">pain trend</div></div>
+      </div>
+      {notes.length > 0 && (
+        <div className="col" style={{ gap: 10 }}>
+          <div className="muted" style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Their notes this week</div>
+          {notes.map((r, i) => (
+            <div key={i} className="row" style={{ gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--sky-50)', border: '1px solid var(--sky-100)' }}>
+              <span className="fb-badge" style={{ color: painColor(r.pain), background: `color-mix(in srgb, ${painColor(r.pain)} 14%, var(--surface))`, flex: '0 0 auto' }}>pain {r.pain}</span>
+              <div style={{ flex: 1, minWidth: 0 }}><div style={{ color: 'var(--text-body)', fontSize: 'var(--text-sm)' }}>“{r.note}”</div><div className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 2 }}>{shortDate(r.dateISO)} · {r.completed}/{r.total} exercises</div></div>
+            </div>
+          ))}
+        </div>
+      )}
+      {notes.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>No notes left this week. Pain ratings come in with each completed session.</p>}
+    </Card>
+  );
+}
 function PatientPanel({ p, api, ping }) {
   const [addOpen, setAddOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
@@ -3379,8 +3449,10 @@ function PatientPanel({ p, api, ping }) {
             {p.constraints.map((c) => <span key={c} className="cue" style={{ color: 'var(--apricot-800)', background: 'var(--apricot-50)' }}>{c}</span>)}
           </div>
         )}
-        {lr && <div className="row" style={{ gap: 12, marginTop: 14, flexWrap: 'wrap' }}><Badge tone="sage" dot>Last session {shortDate(lr.dateISO)}</Badge><span className="muted" style={{ fontSize: 'var(--text-sm)' }}>{lr.completed}/{lr.total} exercises · {lr.minutes} min</span></div>}
+        {lr && <div className="row" style={{ gap: 12, marginTop: 14, flexWrap: 'wrap' }}><Badge tone="sage" dot>Last session {shortDate(lr.dateISO)}</Badge><span className="muted" style={{ fontSize: 'var(--text-sm)' }}>{lr.completed}/{lr.total} exercises · {lr.minutes} min{typeof lr.pain === 'number' ? ` · pain ${lr.pain}/10` : ''}</span></div>}
       </Card>
+
+      <WeeklyCheckin p={p} />
 
       <RoadBack milestones={p.milestones || []} onUpdate={(list) => api.ptSetMilestones(p.uid, list)} ownerName={(p.name || 'Patient').split(' ')[0]} injuryLabel={p.injuryLabel} />
 
@@ -3454,6 +3526,13 @@ function TherapistDashboard() {
       .map(([exId, fb]) => ({ patient: pt, ex: exMap[exId], fb }))
       .filter((x) => x.ex);
   });
+  // Post-session check-ins worth surfacing: high pain ('concerns') or any pain/note ('all'), newest first.
+  const recentStart = daysAgoISO(9);
+  const painFlags = reportPref === 'off' ? [] : patients.flatMap((pt) =>
+    (pt.reports || [])
+      .filter((r) => r.dateISO >= recentStart && typeof r.pain === 'number' && (reportPref === 'all' ? (r.pain >= 4 || (r.note && r.note.trim())) : r.pain >= 6))
+      .map((r) => ({ patient: pt, report: r }))
+  ).sort((a, b) => (a.report.dateISO < b.report.dateISO ? 1 : -1)).slice(0, 8);
 
   useEffect(() => { refreshLink(); }, []);
   useEffect(() => { if (!selUid && patients[0]) setSelUid(patients[0].uid); }, [link]);
@@ -3493,8 +3572,8 @@ function TherapistDashboard() {
           <Card>
             <div className="row" style={{ justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
               <div>
-                <div className="card-eyebrow" style={{ margin: 0 }}><Icon name="bell" size={14} /> Exercise feedback reports</div>
-                <p className="muted" style={{ margin: '6px 0 0', fontSize: 'var(--text-sm)', maxWidth: '48ch' }}>Choose how much you hear when patients mark an exercise too easy, tough, or painful.</p>
+                <div className="card-eyebrow" style={{ margin: 0 }}><Icon name="bell" size={14} /> Feedback & check-in reports</div>
+                <p className="muted" style={{ margin: '6px 0 0', fontSize: 'var(--text-sm)', maxWidth: '52ch' }}>Choose how much you hear: per-exercise feedback (too easy, tough, painful) and the post-session pain check-ins your patients leave.</p>
               </div>
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                 {[['all', 'All feedback'], ['concerns', 'Only concerns'], ['off', 'Off']].map(([v, l]) => (
@@ -3518,6 +3597,25 @@ function TherapistDashboard() {
                     <Icon name="chevron-right" size={16} style={{ color: 'var(--text-subtle)', flex: '0 0 auto' }} />
                   </button>
                 ); })}
+              </div>
+            </Card>
+          )}
+
+          {painFlags.length > 0 && (
+            <Card style={{ borderColor: 'var(--apricot-200)', background: 'var(--surface-brand)' }}>
+              <div className="card-eyebrow" style={{ marginBottom: 12, color: 'var(--brand-soft-text)' }}><Icon name="activity" size={14} /> Recent check-ins worth a look ({painFlags.length})</div>
+              <div className="col" style={{ gap: 10 }}>
+                {painFlags.map((x, i) => (
+                  <button key={i} className="pt-ex-row" style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }} onClick={() => setSelUid(x.patient.uid)}>
+                    <span className="fb-badge" style={{ color: painColor(x.report.pain), background: `color-mix(in srgb, ${painColor(x.report.pain)} 14%, var(--surface))`, flex: '0 0 auto' }}>pain {x.report.pain}/10</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-strong)', fontSize: 'var(--text-sm)' }}>{x.patient.name || 'Patient'}</div>
+                      {x.report.note ? <div className="muted" style={{ fontSize: 'var(--text-sm)' }}>“{x.report.note}”</div> : null}
+                      <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>{shortDate(x.report.dateISO)} · {x.report.completed}/{x.report.total} exercises</div>
+                    </div>
+                    <Icon name="chevron-right" size={16} style={{ color: 'var(--text-subtle)', flex: '0 0 auto' }} />
+                  </button>
+                ))}
               </div>
             </Card>
           )}
@@ -3583,7 +3681,7 @@ const LEGAL = {
         'Your activity: exercise progress and session reports, and your journal entries — mood, pain, notes, small wins, and any optional photos you add.' ] },
       { h: 'How we use it', p: 'Only to run the app for you: to save your progress, sync it across your devices, and show you your trends. We do not sell your data, and we never use it for advertising.' },
       { h: 'Where it’s stored', p: 'Your data is stored securely with Google Firebase (Cloud Firestore and Firebase Authentication) and encrypted in transit.' },
-      { h: 'What your PT can and can’t see', p: 'If you connect to a physical-therapy center with a code, your therapist can see the exercises they assign you, your exercise progress and feedback, and messages you send them. Your journal, mood, pain, and reflections stay private to you — your PT never sees them. You can disconnect from a center at any time.' },
+      { h: 'What your PT can and can’t see', p: 'If you connect to a physical-therapy center with a code, your therapist can see the exercises they assign you, your exercise progress and feedback, the pain rating and quick note you choose to send when you finish a session, and messages you send them. Your private journal — your daily mood, reflections, small wins, and photos — stays yours; your PT never sees it. You can disconnect from a center at any time.' },
       { h: 'Your choices', p: 'You can edit your information in the app anytime, turn off a PT connection once you’ve healed, and permanently erase your journal, progress, and goals with Profile → Delete my data.' },
       { h: 'Children', p: 'The app isn’t directed to children under 13, and we don’t knowingly collect their information.' },
       { h: 'Changes', p: 'If this policy changes, we’ll update this page and the date above.' },
