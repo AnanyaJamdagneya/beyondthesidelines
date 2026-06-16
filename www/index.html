@@ -961,6 +961,8 @@ function StoreProvider({ children }) {
     removePrize(id) { patch((a) => ({ ...a, prizes: (a.prizes || []).filter((p) => p.id !== id) })); },
     updateProfile(p) { patch((a) => ({ ...a, profile: { ...a.profile, ...p } })); },
     setReminder(time) { patch((a) => ({ ...a, reminderTime: time })); },
+    // Multiple reminder times (e.g. for exercises done several times a day).
+    setReminders(times) { const clean = Array.from(new Set((times || []).filter(Boolean))).sort(); patch((a) => ({ ...a, reminderTimes: clean, reminderTime: clean[0] || '' })); },
   }), [account, link, me, careNotes, authReady, busy, authError, patch, applyLink, commitLink, ptPatch]);
 
   return <Store.Provider value={api}>{children}</Store.Provider>;
@@ -1184,6 +1186,8 @@ function celebrate() {
 }
 // 0–10 pain scale colour: green (low) → amber (moderate) → red (high).
 function painColor(n) { return n <= 3 ? '#6BA368' : n <= 6 ? '#E0A33E' : '#D85C43'; }
+// "09:30" → "9:30 AM"
+function fmtTime(t) { if (!t) return ''; const [h, m] = t.split(':').map(Number); const ap = h < 12 ? 'AM' : 'PM'; return `${h % 12 || 12}:${String(m || 0).padStart(2, '0')} ${ap}`; }
 // Read an image file, shrink it to keep storage small, return a JPEG data URL.
 function readResizedImage(file, maxDim = 900, quality = 0.72) {
   return new Promise((resolve, reject) => {
@@ -1261,25 +1265,26 @@ const isNative = () => { try { return !!(window.Capacitor && window.Capacitor.is
 const nativePlugin = (name) => { try { return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[name]) || null; } catch (e) { return null; } };
 
 // Daily reminder as a real phone notification (works even when the app is closed).
-async function scheduleNativeReminder(time) {
+async function scheduleNativeReminders(times) {
   const LN = nativePlugin('LocalNotifications');
-  if (!LN || !time) return false;
+  const list = (times || []).filter(Boolean);
+  if (!LN || !list.length) { await cancelNativeReminders(); return false; }
   try {
     const perm = await LN.requestPermissions();
     if (perm && perm.display && perm.display !== 'granted') return false;
-    const [h, m] = time.split(':').map(Number);
-    await LN.cancel({ notifications: [{ id: 41 }] }).catch(() => {});
-    await LN.schedule({ notifications: [{
-      id: 41, title: 'Beyond the Sidelines',
-      body: 'A gentle nudge — take a minute for today’s check-in.',
+    await cancelNativeReminders();
+    const notifications = list.slice(0, 6).map((t, i) => { const [h, m] = t.split(':').map(Number); return {
+      id: 41 + i, title: 'Beyond the Sidelines',
+      body: 'A gentle nudge — time for your exercises and a quick check-in.',
       schedule: { on: { hour: h, minute: m }, repeats: true, allowWhileIdle: true },
-    }] });
+    }; });
+    await LN.schedule({ notifications });
     return true;
   } catch (e) { return false; }
 }
-async function cancelNativeReminder() {
+async function cancelNativeReminders() {
   const LN = nativePlugin('LocalNotifications');
-  if (LN) { try { await LN.cancel({ notifications: [{ id: 41 }] }); } catch (e) {} }
+  if (LN) { try { await LN.cancel({ notifications: Array.from({ length: 6 }).map((_, i) => ({ id: 41 + i })) }); } catch (e) {} }
 }
 
 // Read today's steps from Apple Health / Google Fit via a health plugin (native only).
@@ -1803,36 +1808,38 @@ function greetingWord() { const h = new Date().getHours(); return h < 12 ? 'Good
 
 function ReminderWatcher() {
   const { account } = useStore();
-  const time = account && account.reminderTime;
-  const journal = account && account.journal;
-  // Native app: schedule a real repeating daily phone notification (fires even when closed).
+  const times = (account && account.reminderTimes && account.reminderTimes.length)
+    ? account.reminderTimes
+    : ((account && account.reminderTime) ? [account.reminderTime] : []);
+  const key = times.join(',');
+  // Native app: schedule real repeating daily phone notifications (fire even when closed).
   useEffect(() => {
     if (!isNative()) return;
-    if (time) scheduleNativeReminder(time); else cancelNativeReminder();
-  }, [time]);
-  // Web fallback: nudge while the tab is open.
+    if (times.length) scheduleNativeReminders(times); else cancelNativeReminders();
+  }, [key]);
+  // Web fallback: nudge while the tab is open, once per time per day.
   useEffect(() => {
-    if (isNative() || !time) return;
+    if (isNative() || !times.length) return;
     const check = () => {
       try {
-        const [h, m] = time.split(':').map(Number);
-        const now = new Date();
-        const due = now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m);
-        const todayKey = todayISO();
-        const already = localStorage.getItem('bts.reminded') === todayKey;
-        const checkedIn = !!(journal && journal[todayKey]);
-        if (due && !already && !checkedIn) {
-          localStorage.setItem('bts.reminded', todayKey);
-          if (window.Notification && Notification.permission === 'granted') {
-            new Notification('Beyond the Sidelines', { body: 'A gentle nudge — take a minute for today’s check-in.' });
+        const now = new Date(); const todayKey = todayISO();
+        times.forEach((t) => {
+          const [h, m] = t.split(':').map(Number);
+          const due = now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m);
+          const stamp = 'bts.reminded.' + t;
+          if (due && localStorage.getItem(stamp) !== todayKey) {
+            localStorage.setItem(stamp, todayKey);
+            if (window.Notification && Notification.permission === 'granted') {
+              new Notification('Beyond the Sidelines', { body: 'A gentle nudge — time for your exercises and a quick check-in.' });
+            }
           }
-        }
+        });
       } catch (e) {}
     };
     check();
     const id = setInterval(check, 60000);
     return () => clearInterval(id);
-  }, [time, journal]);
+  }, [key]);
   return null;
 }
 function AppShell({ active, children }) {
@@ -2235,15 +2242,15 @@ function SessionPlayer({ items, startProgress, onSetDone, onFeedback, onClose, o
 }
 
 /* ---------- EXERCISES (PT session) ---------- */
-function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, assigned, feedback, onFeedback, rounds=0, onRound, reorderable, onDragStartItem, onDropItem, onDragEndItem, onDragOverItem, dragging, dragOver }) {
+function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, onPerDay, assigned, feedback, onFeedback, rounds=0, onRound, reorderable, onDragStartItem, onDropItem, onDragEndItem, onDragOverItem, dragging, dragOver }) {
   const [open, setOpen] = useState(false);
   const th = THUMBS[ex.thumb] || THUMBS.quad;
-  const isDone = done >= ex.sets;
   const dose = ex.type === 'hold' ? `${ex.holdSec}s hold` : `${ex.reps} reps`;
   const perDay = ex.timesPerDay || 1;
   const multi = perDay > 1;
   const roundsDone = Math.min(rounds || 0, perDay);
   const allRounds = roundsDone >= perDay;
+  const isDone = multi ? allRounds : (done >= ex.sets);
   return (
     <div className="ex-card" data-done={isDone ? 'true' : undefined}
       onDragOver={reorderable ? (e) => { e.preventDefault(); onDragOverItem && onDragOverItem(); } : undefined}
@@ -2265,6 +2272,16 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, assi
             : <button className="icon-btn" title="Remove" onClick={onRemove}><Icon name="x" size={16}/></button>}
         </div>
       </div>
+      {onPerDay && (
+        <div className="row" style={{ gap:10, alignItems:'center', padding:'0 18px 12px' }}>
+          <span className="muted" style={{ fontSize:'var(--text-sm)', fontWeight:600 }}>Times a day</span>
+          <div className="row" style={{ gap:8, alignItems:'center' }}>
+            <button className="icon-btn" onClick={() => onPerDay(Math.max(1, perDay - 1))} disabled={perDay <= 1} title="Fewer"><Icon name="minus" size={15}/></button>
+            <span style={{ minWidth:30, textAlign:'center', fontWeight:700, color:'var(--text-strong)' }}>{perDay}×</span>
+            <button className="icon-btn" onClick={() => onPerDay(Math.min(6, perDay + 1))} disabled={perDay >= 6} title="More"><Icon name="plus" size={15}/></button>
+          </div>
+        </div>
+      )}
       <div className="ex-sets">
         <span className="muted" style={{ fontSize:'var(--text-sm)', fontWeight:600, marginRight:4 }}>Sets:</span>
         {Array.from({ length: ex.sets }).map((_, i) => (
@@ -2274,6 +2291,15 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, assi
           {open ? 'Hide' : 'How to'} <Icon name={open ? 'chevron-down' : 'chevron-right'} size={15}/>
         </button>
       </div>
+      {!multi && (
+        <div style={{ padding:'0 18px 16px' }}>
+          <button onClick={() => onSet(isDone ? 0 : ex.sets)}
+            style={{ width:'100%', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px', borderRadius:'var(--radius-md)', cursor:'pointer', fontWeight:700, fontSize:'var(--text-sm)',
+              border: isDone ? '1.5px solid var(--sage-500)' : '1.5px solid transparent', background: isDone ? 'var(--sage-50)' : 'var(--brand)', color: isDone ? 'var(--sage-600)' : '#fff' }}>
+            <Icon name={isDone ? 'check-circle' : 'check'} size={18}/> {isDone ? 'Done today — tap to undo' : 'Mark done'}
+          </button>
+        </div>
+      )}
       {multi && onRound && (
         <div className="round-track" data-done={allRounds ? 'true' : undefined}>
           <Icon name="repeat" size={16} style={{ color: allRounds ? 'var(--sage-600)' : 'var(--brand)', flex:'0 0 auto' }}/>
@@ -2329,8 +2355,9 @@ function LibRow({ e, added, override, cautions, onAdd, onUpdate }) {
   const [reps, setReps] = useState((override && override.reps) || e.reps);
   const [hold, setHold] = useState((override && override.holdSec) || e.holdSec);
   const [rest, setRest] = useState((override && override.restSec) || e.restSec);
-  const build = () => { const o = { sets: clampN(sets, 1, 12), restSec: clampN(rest, 0, 180) }; if (isHold) o.holdSec = clampN(hold, 3, 180); else o.reps = clampN(reps, 1, 60); return o; };
-  const changed = clampN(sets, 1, 12) !== e.sets || clampN(rest, 0, 180) !== e.restSec || (isHold ? clampN(hold, 3, 180) !== e.holdSec : clampN(reps, 1, 60) !== e.reps);
+  const [tpd, setTpd] = useState((override && override.timesPerDay) || e.timesPerDay || 1);
+  const build = () => { const o = { sets: clampN(sets, 1, 12), restSec: clampN(rest, 0, 180), timesPerDay: clampN(tpd, 1, 6) }; if (isHold) o.holdSec = clampN(hold, 3, 180); else o.reps = clampN(reps, 1, 60); return o; };
+  const changed = clampN(sets, 1, 12) !== e.sets || clampN(rest, 0, 180) !== e.restSec || clampN(tpd, 1, 6) !== (e.timesPerDay || 1) || (isHold ? clampN(hold, 3, 180) !== e.holdSec : clampN(reps, 1, 60) !== e.reps);
   return (
     <div className="lib-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
       <div className="row" style={{ gap: 14 }}>
@@ -2353,6 +2380,7 @@ function LibRow({ e, added, override, cautions, onAdd, onUpdate }) {
               ? <div style={{ width: 100 }}><Input label="Hold (sec)" type="number" value={hold} onChange={(ev) => setHold(ev.target.value)} /></div>
               : <div style={{ width: 92 }}><Input label="Reps" type="number" value={reps} onChange={(ev) => setReps(ev.target.value)} /></div>}
             <div style={{ width: 100 }}><Input label="Rest (sec)" type="number" value={rest} onChange={(ev) => setRest(ev.target.value)} /></div>
+            <div style={{ width: 100 }}><Input label="Times/day" type="number" min="1" max="6" value={tpd} onChange={(ev) => setTpd(ev.target.value)} /></div>
           </div>
           {added && <Button variant="primary" size="sm" onClick={() => { onUpdate(e.id, build()); setOpen(false); }} iconLeft={<Icon name="check" size={15} />} style={{ marginTop: 12 }}>Save changes</Button>}
         </div>
@@ -2390,7 +2418,7 @@ function LibraryDrawer({ onClose, defaultArea }) {
   );
 }
 function Exercises() {
-  const { account, setSetDone, setRounds, removeExercise, sendReport, ptPatient, setFeedback, setPlanOrder, duplicateExercise, graduateExercise } = useStore();
+  const { account, setSetDone, setRounds, removeExercise, sendReport, ptPatient, setFeedback, setPlanOrder, duplicateExercise, graduateExercise, setExerciseOverride } = useStore();
   const iso = todayISO();
   const [drawer, setDrawer] = useState(false);
   const [play, setPlay] = useState(false);
@@ -2427,7 +2455,8 @@ function Exercises() {
   };
   const fbMap = (ptPatient && ptPatient.feedback) || account.feedback || {};
   const total = items.length;
-  const completed = items.filter((e) => (progress[e.id] || 0) >= e.sets).length;
+  const exDoneToday = (e) => ((e.timesPerDay || 1) > 1 ? (dayRounds[e.id] || 0) >= (e.timesPerDay || 1) : (progress[e.id] || 0) >= e.sets);
+  const completed = items.filter(exDoneToday).length;
   const minutes = items.reduce((a, e) => a + (e.durationMin || 3), 0);
   const doneAll = total > 0 && completed === total;
   const alreadySent = account.sessions[iso] && account.sessions[iso].sent;
@@ -2534,6 +2563,7 @@ function Exercises() {
               onSet={(n) => setSetDone(iso, e.id, n)} onRemove={() => removeExercise(e.id)}
               onDuplicate={() => { duplicateExercise(e); ping('Duplicated, tweak your copy from Add exercise.'); }}
               onGraduate={assigned ? undefined : () => { graduateExercise(e.id, e.name); ping('Graduated! It’s logged in your Journey.'); }}
+              onPerDay={(n) => setExerciseOverride(e.id, { ...(overrides[e.id] || {}), timesPerDay: n })}
               reorderable={!assigned && ownItems.length > 1}
               dragging={dragId === e.id} dragOver={overId === e.id}
               onDragStartItem={() => { dragRef.current = e.id; setDragId(e.id); }} onDragEndItem={() => { dragRef.current = null; setDragId(null); setOverId(null); }}
@@ -3100,10 +3130,12 @@ function EditText({ value, onSave, placeholder }) {
   return <Input value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={() => { if (v.trim() !== (value || '')) onSave(v.trim()); }} />;
 }
 function Profile() {
-  const { account, deleteMyData, signOut, addGoal, toggleGoal, removeGoal, updateProfile, connectCenter, disconnectCenter, setReminder } = useStore();
+  const { account, deleteMyData, signOut, addGoal, toggleGoal, removeGoal, updateProfile, connectCenter, disconnectCenter, setReminder, setReminders } = useStore();
   const [goalInput, setGoalInput] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [newTime, setNewTime] = useState('');
+  const reminderTimes = (account.reminderTimes && account.reminderTimes.length) ? account.reminderTimes : (account.reminderTime ? [account.reminderTime] : []);
   const [centerCodeInput, setCenterCodeInput] = useState('');
   const [notifPerm, setNotifPerm] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
   const askNotif = async () => { try { const r = await Notification.requestPermission(); setNotifPerm(r); } catch (e) {} };
@@ -3167,23 +3199,33 @@ function Profile() {
         </Card>
 
         <Card>
-          <div className="card-eyebrow" style={{ marginBottom:14 }}><Icon name="bell" size={14}/> Daily reminder</div>
-          <div className="row" style={{ gap:14, flexWrap:'wrap', justifyContent:'space-between', alignItems:'flex-end' }}>
-            <div>
-              <label className="field-label" style={{ fontSize:'var(--text-sm)', display:'block', marginBottom:8 }}>Nudge me to check in at</label>
-              <input type="time" value={account.reminderTime || ''} onChange={(e) => setReminder(e.target.value)}
-                style={{ height:'var(--control-h-md)', padding:'0 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border-strong)', fontFamily:'var(--font-sans)', fontSize:'var(--text-base)', color:'var(--text-strong)', background:'var(--surface)' }} />
-              {account.reminderTime && <button onClick={() => setReminder('')} className="auth-link" style={{ background:'none', border:'none', marginLeft:12, fontSize:'var(--text-sm)' }}>Turn off</button>}
-            </div>
+          <div className="row" style={{ justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:10, marginBottom:14 }}>
+            <div className="card-eyebrow" style={{ margin:0 }}><Icon name="bell" size={14}/> Reminder times</div>
             {isNative()
-              ? (account.reminderTime ? <Badge tone="sage" dot>Reminder on</Badge> : null)
+              ? (reminderTimes.length ? <Badge tone="sage" dot>{reminderTimes.length} on</Badge> : null)
               : notifPerm === 'granted'
                 ? <Badge tone="sage" dot>Notifications on</Badge>
                 : notifPerm === 'unsupported'
                   ? <span className="muted" style={{ fontSize:'var(--text-sm)' }}>Notifications not available here</span>
                   : <Button variant="secondary" size="sm" onClick={askNotif} iconLeft={<Icon name="bell" size={15}/>}>Turn on notifications</Button>}
           </div>
-          <p className="muted" style={{ margin:'14px 0 0', fontSize:'var(--text-xs)' }}>{isNative() ? 'Your phone will remind you at this time each day, even when the app is closed.' : 'Reminders show while the app is open in your browser. In the installed phone app, they arrive anytime.'}</p>
+          <p className="muted" style={{ margin:'0 0 14px', fontSize:'var(--text-sm)' }}>Add a time for each session — handy if you do your exercises a few times a day. We’ll nudge you at each one.</p>
+          {reminderTimes.length > 0 && (
+            <div className="row" style={{ gap:8, flexWrap:'wrap', marginBottom:14 }}>
+              {reminderTimes.map((t) => (
+                <span key={t} className="chip" data-on style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'8px 10px 8px 14px' }}>
+                  <Icon name="clock" size={14}/> {fmtTime(t)}
+                  <button onClick={() => setReminders(reminderTimes.filter((x) => x !== t))} title="Remove" style={{ background:'none', border:'none', cursor:'pointer', color:'inherit', display:'inline-flex', padding:2 }}><Icon name="x" size={14}/></button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="row" style={{ gap:10, alignItems:'center', flexWrap:'wrap' }}>
+            <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)}
+              style={{ height:'var(--control-h-md)', padding:'0 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border-strong)', fontFamily:'var(--font-sans)', fontSize:'var(--text-base)', color:'var(--text-strong)', background:'var(--surface)' }} />
+            <Button variant="secondary" size="sm" disabled={!newTime} onClick={() => { setReminders([...reminderTimes, newTime]); setNewTime(''); }} iconLeft={<Icon name="plus" size={15}/>}>Add time</Button>
+          </div>
+          <p className="muted" style={{ margin:'14px 0 0', fontSize:'var(--text-xs)' }}>{isNative() ? 'Your phone will remind you at each time daily, even when the app is closed.' : 'Reminders show while the app is open in your browser. In the installed phone app, they arrive anytime.'}</p>
         </Card>
 
         {account.mode === 'center' ? (
