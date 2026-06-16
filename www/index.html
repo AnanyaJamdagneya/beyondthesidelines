@@ -747,12 +747,14 @@ function StoreProvider({ children }) {
 
     loadDemo() {
       const center = 'Riverside Physical Therapy';
+      const notes = buildCareNotes(center, 'Maya');
+      uidRef.current = 'demo-maya';
       setAccount({ ...emptyAccount({ name: 'Maya Torres', email: 'maya@demo.app', mode: 'center' }),
         mode: 'center', center, centerCode: 'RIVER-2026', onboarded: true,
         profile: { injuryKey: 'knee', injuryLabel: 'Left knee', side: 'left', detail: 'ACL reconstruction recovery',
           phase: 'Strength & control', startISO: daysAgoISO(42), constraints: ['No running or jumping', 'Pain with stairs'] },
         plan: AREA_PLANS.knee.slice(),
-        journal: buildSeedJournal(73, 'center'), sessions: buildSeedSessions(73), careNotes: buildCareNotes(center, 'Maya'),
+        journal: buildSeedJournal(73, 'center'), sessions: buildSeedSessions(73), careNotes: notes,
         goals: [ { id: 'g1', text: 'Go up stairs without the rail', done: false },
           { id: 'g2', text: 'Walk a full block without stopping', done: true },
           { id: 'g3', text: 'Get back to weekend hikes', done: false } ],
@@ -768,7 +770,14 @@ function StoreProvider({ children }) {
           { id: 'k5', label: 'Back to full activity', done: false, doneISO: null } ],
         graduated: [ { id: 'quadset', name: 'Quad sets', dateISO: daysAgoISO(20) }, { id: 'heelslide', name: 'Heel slides', dateISO: daysAgoISO(9) } ],
         createdAt: Date.now() - 42 * 86400000, demo: true });
-      applyLink(null);
+      applyLink({ code: 'RIVER-2026', clinic: center, therapistName: 'Jordan Reyes, PT', therapistUid: 'demo-pt', createdAt: Date.now() - 42 * 86400000,
+        patients: { 'demo-maya': { uid: 'demo-maya', name: 'Maya Torres', injuryKey: 'knee', injuryLabel: 'Left knee', plan: AREA_PLANS.knee.slice(), customEx: {}, notes,
+          connectedAt: Date.now() - 42 * 86400000, messages: [
+            { id: 'dm1', from: 'patient', text: 'Hi! Quick question — going down the stairs still feels shaky. Should I keep using the rail?', dateISO: daysAgoISO(3) },
+            { id: 'dm2', from: 'therapist', text: 'Great question, Maya. Yes — keep the rail going down for now and lead with the stronger leg. We’ll progress it next week.', dateISO: daysAgoISO(3) },
+            { id: 'dm3', from: 'patient', text: 'Got it, thank you! The quad sets feel much easier now.', dateISO: daysAgoISO(2) },
+            { id: 'dm4', from: 'therapist', text: 'Love to hear it — that’s exactly why I graduated you past them. Keep it up, and ice it if the knee swells after stairs.', dateISO: daysAgoISO(1) },
+          ] } } });
       go('/today');
     },
     loadDemoTherapist() {
@@ -924,6 +933,12 @@ function StoreProvider({ children }) {
         const p = l.patients[uid];
         commitLink({ ...l, patients: { ...l.patients, [uid]: { ...p, messages: [...(p.messages || []), { id: 'm' + Date.now(), from: 'patient', text: text.trim(), dateISO: todayISO() }] } } });
       }
+    },
+    // Clear the unread dot once the patient has opened the conversation.
+    markMsgsSeen() {
+      const l = linkRef.current; const meNow = (l && l.patients) ? l.patients[uidRef.current] : null;
+      const msgs = (meNow && meNow.messages) || []; const last = msgs[msgs.length - 1];
+      if (last) patch((a) => (a.lastMsgSeenId === last.id ? a : { ...a, lastMsgSeenId: last.id }));
     },
     addGoal(text) { patch((a) => ({ ...a, goals: [...a.goals, { id: 'g' + Date.now(), text, done: false }] })); },
     toggleGoal(id) { patch((a) => ({ ...a, goals: a.goals.map((g) => g.id === id ? { ...g, done: !g.done } : g) })); },
@@ -1806,10 +1821,13 @@ function ReminderWatcher() {
   return null;
 }
 function AppShell({ active, children }) {
-  const { account, signOut, careNotes } = useStore();
+  const { account, signOut, careNotes, ptPatient } = useStore();
   const [menu, setMenu] = useState(false);
   const seen = new Set(account.seenNotes || []);
   const unread = account.mode === 'center' ? careNotes.filter((n) => !seen.has(n.id)).length : 0;
+  const msgs = (ptPatient && ptPatient.messages) || [];
+  const lastMsg = msgs[msgs.length - 1];
+  const msgUnread = account.mode === 'center' && lastMsg && lastMsg.from === 'therapist' && lastMsg.id !== account.lastMsgSeenId;
   const nav = [
     { key:'today', label:'Today', icon:'home', path:'/today' },
     { key:'exercises', label:'Exercises', icon:'dumbbell', path:'/exercises' },
@@ -1830,6 +1848,12 @@ function AppShell({ active, children }) {
         </nav>
         <div className="topbar-right">
           <Badge tone="brand" dot>{streakOf(account.journal) > 0 ? `${streakOf(account.journal)} ${streakOf(account.journal) === 1 ? 'day' : 'days'} showing up` : 'Just getting started'}</Badge>
+          {account.mode === 'center' && (
+            <button className="icon-btn" title="Messages with your PT" onClick={() => go('/messages')} data-active={active === 'messages' ? 'true' : undefined} style={{ position:'relative' }}>
+              <Icon name="mail" size={18} />
+              {msgUnread && <span style={{ position:'absolute', top:1, right:1, width:9, height:9, borderRadius:'50%', background:'var(--brand)', border:'2px solid var(--bg)' }} />}
+            </button>
+          )}
           <button className="avatar-btn" onClick={() => setMenu((m) => !m)}><Avatar name={account.name || 'You'} size="sm" ring /></button>
         </div>
       </header>
@@ -3011,6 +3035,32 @@ function PatientMessages() {
     </Card>
   );
 }
+
+/* ---------- MESSAGES (patient ↔ PT, its own destination) ---------- */
+function Messages() {
+  const { account, ptPatient, sendMessageToPT, markMsgsSeen } = useStore();
+  const [text, setText] = useState('');
+  const msgs = (ptPatient && ptPatient.messages) || [];
+  useEffect(() => { markMsgsSeen(); }, [msgs.length]);
+  const send = () => { if (!text.trim()) return; sendMessageToPT(text); setText(''); };
+  return (
+    <AppShell active="messages">
+      <div className="shell shell-narrow">
+        <div className="greeting"><span className="r-eyebrow">Messages</span><h2 className="greet-hello" style={{ marginTop:8 }}>{account.center || 'Your PT'}</h2><p className="greet-line">Questions, updates, or a quick hello — your therapist sees these on their dashboard. Your journal stays private.</p></div>
+        <Card>
+          <div className="col" style={{ gap:8, marginBottom:16, maxHeight:'52vh', overflowY:'auto' }}>
+            {msgs.length === 0 && <p className="muted" style={{ margin:0, fontSize:'var(--text-sm)' }}>No messages yet. Say hi or ask a question below — {account.center || 'your PT'} will reply right here.</p>}
+            {msgs.map((m) => <MsgBubble key={m.id} m={m} mine={m.from === 'patient'} />)}
+          </div>
+          <div className="row" style={{ gap:10 }}>
+            <Input placeholder="Write a message…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} />
+            <Button variant="primary" size="sm" disabled={!text.trim()} onClick={send} iconLeft={<Icon name="send" size={15} />}>Send</Button>
+          </div>
+        </Card>
+      </div>
+    </AppShell>
+  );
+}
 // Inline editable text field: local state, saves on blur (no focus loss while typing).
 function EditText({ value, onSave, placeholder }) {
   const [v, setV] = useState(value || '');
@@ -3606,6 +3656,7 @@ function App() {
   if (route === '/exercises') return <Exercises />;
   if (route === '/journal') return <Journal />;
   if (route === '/journey') return <Journey />;
+  if (route === '/messages') return account.mode === 'center' ? <Messages /> : <Home />;
   if (route === '/profile') return <Profile />;
   return <Home />;
 }
