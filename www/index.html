@@ -532,6 +532,15 @@ const LocalBackend = {
   async deleteData(uid) { LS.del('bts.data.' + uid); },
   async loadLink(code) { return LS.get('bts.link.' + code, null); },
   async saveLink(code, link) { LS.set('bts.link.' + code, link); },
+  // Live channel: re-read on cross-tab storage events + a light poll, so PT↔patient messages sync.
+  subscribeLink(code, cb) {
+    const read = () => { try { cb(LS.get('bts.link.' + code, null)); } catch (e) {} };
+    read();
+    const onStorage = (e) => { if (!e || e.key === 'bts.link.' + code) read(); };
+    window.addEventListener('storage', onStorage);
+    const t = setInterval(read, 2500);
+    return () => { window.removeEventListener('storage', onStorage); clearInterval(t); };
+  },
 };
 
 /* real auth + Firestore sync */
@@ -592,6 +601,17 @@ const FirebaseBackend = {
   async saveLink(code, link) {
     await _fd.collection('links').doc(code).set({ data: JSON.stringify(link), updatedAt: Date.now() });
   },
+  // Live channel: Firestore pushes every change to the connection doc, so PT↔patient
+  // messages, plans, and notes appear in real time without a manual refresh.
+  subscribeLink(code, cb) {
+    this._init();
+    return _fd.collection('links').doc(code).onSnapshot((snap) => {
+      if (!snap || !snap.exists) { cb(null); return; }
+      const d = snap.data();
+      if (d && typeof d.data === 'string') { try { cb(JSON.parse(d.data)); return; } catch (e) {} }
+      cb(null);
+    }, () => {});
+  },
 };
 
 const backend = FB_READY ? FirebaseBackend : LocalBackend;
@@ -647,6 +667,16 @@ function StoreProvider({ children }) {
     });
     return () => { mounted = false; };
   }, []);
+
+  // Live channel: subscribe to the shared connection doc so PT↔patient messages, plans, and
+  // notes update in real time on both sides (no manual refresh).
+  useEffect(() => {
+    if (!account || account.demo || !backend.subscribeLink) return;
+    const code = account.role === 'therapist' ? account.code : account.centerCode;
+    if (!code) return;
+    const unsub = backend.subscribeLink(code, (l) => { if (l) applyLink(l); });
+    return () => { try { unsub && unsub(); } catch (e) {} };
+  }, [account && account.role, account && account.code, account && account.centerCode, account && account.demo, applyLink]);
 
   const save = useCallback((next) => {
     if (!next || next.demo || !uidRef.current) return;
