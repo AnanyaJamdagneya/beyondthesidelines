@@ -15,6 +15,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Sidelines" />
 <link rel="stylesheet" href="styles.css?v=7" />
+<!-- Vercel Web Analytics (visitors + page views). Static-site method: just load Vercel's script.
+     Only on the live website — skipped inside the native app, where /_vercel/ doesn't exist. -->
+<script>
+  if (location.hostname.endsWith('beyond-the-sidelines.com') || location.hostname.endsWith('vercel.app')) {
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    var _va = document.createElement('script'); _va.defer = true; _va.src = '/_vercel/insights/script.js';
+    document.head.appendChild(_va);
+  }
+</script>
 <!-- Libraries are bundled locally (vendor/) so the app is self-contained and works offline -->
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
