@@ -1,7 +1,7 @@
 /* Beyond the Sidelines — service worker.
  * Makes the app installable and keeps it working offline after the first visit.
  * Bump CACHE when you change app files so users get the update. */
-const CACHE = 'bts-v24';
+const CACHE = 'bts-v25';
 const CORE = [
   './',
   './index.html',

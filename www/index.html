@@ -1937,7 +1937,7 @@ function AppShell({ active, children }) {
       </header>
       {menu && (
         <>
-          <div style={{ position:'fixed', inset:0, zIndex:55 }} onClick={() => setMenu(false)} />
+          <div style={{ position:'fixed', inset:0, zIndex:45 }} onClick={() => setMenu(false)} />
           <div className="menu">
             <div className="menu-head"><div style={{ fontWeight:700, color:'var(--text-strong)' }}>{account.name || 'You'}</div><div className="muted" style={{ fontSize:'var(--text-xs)' }}>{account.mode === 'center' ? account.center : 'On your own'}</div></div>
             <button className="menu-item" onClick={() => { setMenu(false); go('/profile'); }}><Icon name="settings" size={16}/> Profile & settings</button>
