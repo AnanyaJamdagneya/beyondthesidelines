@@ -422,7 +422,9 @@ function buildSeedSessions(seedNum) {
     if (rand() < 0.78) {
       const total = 5;
       const completed = rand() < 0.8 ? 5 : 3 + Math.floor(rand() * 2);
-      log[daysAgoISO(ago)] = { completed, total, minutes: 14 + Math.floor(rand() * 8), sent: true };
+      // Pain easing over the weeks (≈5 → ≈2) with honest day-to-day wobble.
+      const pain = Math.max(0, Math.min(10, Math.round(5 - ((26 - ago) / 26) * 3 + (rand() - 0.5) * 2)));
+      log[daysAgoISO(ago)] = { completed, total, minutes: 14 + Math.floor(rand() * 8), pain, sent: true };
     }
   }
   return log;
@@ -800,7 +802,7 @@ function StoreProvider({ children }) {
               { dateISO: daysAgoISO(1), completed: 4, total: 5, minutes: 18, pain: 6, note: 'The hamstring curls really pulled on the left side today, had to stop a set early.' },
               { dateISO: daysAgoISO(3), completed: 5, total: 5, minutes: 20, pain: 3, note: '' },
               { dateISO: daysAgoISO(5), completed: 5, total: 5, minutes: 17, pain: 2, note: 'Felt strong — stairs were noticeably easier.' } ] }),
-        p2: mkP('p2', 'James Rivera', 'shoulder', 'Right shoulder', ['pendulum', 'scapsqueeze', 'wallwalk'], {}, []),
+        p2: mkP('p2', 'James Rivera', 'shoulder', 'Right shoulder', ['pendulum', 'scapsqueeze', 'wallwalk'], {}, [], { connectedAt: Date.now() - 21 * 86400000, lastReport: { completed: 3, total: 5, minutes: 12, dateISO: daysAgoISO(8) } }),
         p3: mkP('p3', 'Dana Brooks', 'ankle', 'Left ankle', ['anklecircles', 'calf'], {}, [{ id: 'n2', text: 'Nice progress on the balance work. Add the heel raises when ready.', type: 'cheer', dateISO: daysAgoISO(4) }],
           { reports: [
             { dateISO: daysAgoISO(2), completed: 2, total: 2, minutes: 9, pain: 2, note: 'Ankle felt stable, no swelling after.' },
@@ -1188,6 +1190,8 @@ function celebrate() {
 function painColor(n) { return n <= 3 ? '#6BA368' : n <= 6 ? '#E0A33E' : '#D85C43'; }
 // "09:30" → "9:30 AM"
 function fmtTime(t) { if (!t) return ''; const [h, m] = t.split(':').map(Number); const ap = h < 12 ? 'AM' : 'PM'; return `${h % 12 || 12}:${String(m || 0).padStart(2, '0')} ${ap}`; }
+// Whole days between an ISO date and today (for PT adherence). null if no date.
+function daysSinceISO(iso) { if (!iso) return null; const a = new Date(iso + 'T00:00:00'); const b = new Date(todayISO() + 'T00:00:00'); return Math.max(0, Math.round((b - a) / 86400000)); }
 // Read an image file, shrink it to keep storage small, return a JPEG data URL.
 function readResizedImage(file, maxDim = 900, quality = 0.72) {
   return new Promise((resolve, reject) => {
@@ -2734,6 +2738,74 @@ function useIsPhone() {
   useEffect(() => { const on = () => setPhone(get()); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on); }, []);
   return phone;
 }
+// Pain over time from the post-session check-ins (0–10). Lower is better, so a downward line = good.
+function PainTrend({ sessions }) {
+  const isPhone = useIsPhone();
+  const dates = Object.keys(sessions || {}).filter((d) => typeof sessions[d].pain === 'number').sort();
+  if (dates.length < 2) return null;
+  const byWeek = Math.round((today() - fromISO(dates[0])) / 86400000) >= 28;
+  let pts, labels;
+  if (byWeek) {
+    const buckets = {};
+    dates.forEach((d) => { const wk = Math.floor(Math.round((today() - fromISO(d)) / 86400000) / 7); (buckets[wk] = buckets[wk] || []).push(sessions[d].pain); });
+    const weeks = Object.keys(buckets).map(Number).sort((a, b) => a - b).slice(0, 6).reverse();
+    pts = weeks.map((wk) => buckets[wk].reduce((s, p) => s + p, 0) / buckets[wk].length);
+    labels = weeks.map((wk) => wk === 0 ? 'This wk' : wk + 'w ago');
+  } else {
+    const days = dates.slice(-10);
+    pts = days.map((d) => sessions[d].pain);
+    labels = days.map((d) => d === todayISO() ? 'Today' : DOW[fromISO(d).getDay()]);
+  }
+  const delta = pts[pts.length - 1] - pts[0];
+  const trendKey = delta <= -1 ? 'down' : delta >= 1 ? 'up' : 'steady';
+  const TREND = {
+    down: { icon: 'trending-down', label: 'Pain easing', color: '#6BA368', bg: 'color-mix(in srgb, #6BA368 12%, var(--surface))' },
+    up: { icon: 'trending-up', label: 'Pain rising', color: '#D85C43', bg: 'color-mix(in srgb, #D85C43 12%, var(--surface))' },
+    steady: { icon: 'activity', label: 'Holding steady', color: 'var(--text-muted)', bg: 'var(--surface-sunken)' },
+  }[trendKey];
+  const W = isPhone ? 360 : 520, H = isPhone ? 220 : 150, padX = 30, padY = isPhone ? 28 : 24;
+  const x = (i) => padX + i * ((W - padX * 2) / Math.max(1, pts.length - 1));
+  const y = (v) => padY + (v / 10) * (H - padY * 2);
+  const P = pts.map((v, i) => [x(i), y(v)]);
+  const line = P.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = `${line} L ${x(pts.length - 1).toFixed(1)} ${H - padY} L ${x(0).toFixed(1)} ${H - padY} Z`;
+  const ptR = isPhone ? 6 : 4.5, lineW = isPhone ? 4 : 3, labelFS = isPhone ? 14 : 11;
+  const showLabel = (i) => pts.length <= 8 || i === 0 || i === pts.length - 1 || i % 2 === 0;
+  return (
+    <div>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+        <span className="fb-badge" style={{ color: TREND.color, background: TREND.bg }}><Icon name={TREND.icon} size={14} /> {TREND.label}</span>
+        <span className="muted" style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>{byWeek ? 'by week' : 'by day'} · 0 none → 10 worst</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
+        <defs><linearGradient id="paintrend" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#D85C43" stopOpacity="0.18" /><stop offset="100%" stopColor="#D85C43" stopOpacity="0" /></linearGradient></defs>
+        {[0, 2, 4, 6, 8, 10].map((v) => <line key={v} x1={padX} x2={W - padX} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" />)}
+        <path d={area} fill="url(#paintrend)" />
+        <path d={line} fill="none" stroke="#D85C43" strokeWidth={lineW} strokeLinecap="round" strokeLinejoin="round" />
+        {P.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={ptR} fill="var(--surface)" stroke={painColor(Math.round(pts[i]))} strokeWidth="2.5" />)}
+        {labels.map((lb, i) => showLabel(i) ? <text key={i} x={x(i)} y={H - (isPhone ? 6 : 4)} textAnchor="middle" fontSize={labelFS} fill="var(--text-subtle)">{lb}</text> : null)}
+      </svg>
+    </div>
+  );
+}
+// Before/after style strip of any progress photos the patient added to their journal.
+function PhotoTimeline({ journal }) {
+  const items = Object.keys(journal || {}).filter((d) => journal[d].photo).sort().reverse().map((d) => ({ d, photo: journal[d].photo }));
+  if (!items.length) return null;
+  return (
+    <Card>
+      <div className="card-eyebrow" style={{ marginBottom: 14 }}><Icon name="sparkles" size={14} /> Your progress in photos</div>
+      <div className="row" style={{ gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+        {items.map((it) => (
+          <div key={it.d} style={{ flex: '0 0 auto', width: 120 }}>
+            <img src={it.photo} alt={shortDate(it.d)} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }} />
+            <div className="muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6, textAlign: 'center' }}>{shortDate(it.d)}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 function MoodTrend({ journal }) {
   const [sel, setSel] = useState(null);
   const isPhone = useIsPhone();
@@ -2983,6 +3055,12 @@ function Journey() {
             <Card><div className="card-head" style={{ marginBottom:12 }}><div className="card-eyebrow"><Icon name="calendar" size={14}/> Every day you showed up</div></div><MoodCalendar journal={journal} /></Card>
           </div>
         )}
+
+        {Object.keys(account.sessions || {}).filter((d) => typeof account.sessions[d].pain === 'number').length > 1 && (
+          <Card><div className="card-head" style={{ marginBottom:12 }}><div className="card-eyebrow"><Icon name="activity" size={14}/> Pain over time</div></div><PainTrend sessions={account.sessions} /></Card>
+        )}
+
+        <PhotoTimeline journal={journal} />
 
         {account.goals && account.goals.length > 0 && (
           <Card>
@@ -3576,6 +3654,18 @@ function TherapistDashboard() {
       .map((r) => ({ patient: pt, report: r }))
   ).sort((a, b) => (a.report.dateISO < b.report.dateISO ? 1 : -1)).slice(0, 8);
 
+  // Adherence: how recently each patient logged exercises, so the PT knows who to nudge.
+  const adherence = patients.map((pt) => {
+    const reps = (pt.reports || []).map((r) => r.dateISO).sort();
+    const lastISO = reps.length ? reps[reps.length - 1] : (pt.lastReport && pt.lastReport.dateISO) || null;
+    const days = daysSinceISO(lastISO);
+    const wk = (pt.reports || []).filter((r) => r.dateISO >= daysAgoISO(6)).length;
+    const status = days == null ? 'none' : days <= 1 ? 'ontrack' : days <= 4 ? 'slowing' : 'nudge';
+    return { pt, lastISO, days, wk, status };
+  }).sort((a, b) => { const rank = { nudge: 0, none: 1, slowing: 2, ontrack: 3 }; if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status]; return (b.days || 0) - (a.days || 0); });
+  const needNudge = adherence.filter((x) => x.status === 'nudge' || x.status === 'none').length;
+  const ADH = { ontrack: { label: 'On track', color: '#6BA368', tone: 'sage' }, slowing: { label: 'Slowing down', color: '#E0A33E', tone: 'amber' }, nudge: { label: 'Needs a nudge', color: '#D85C43', tone: 'brand' }, none: { label: 'No sessions yet', color: 'var(--text-subtle)', tone: 'sky' } };
+
   useEffect(() => { refreshLink(); }, []);
   useEffect(() => { if (!selUid && patients[0]) setSelUid(patients[0].uid); }, [link]);
 
@@ -3658,6 +3748,26 @@ function TherapistDashboard() {
                     <Icon name="chevron-right" size={16} style={{ color: 'var(--text-subtle)', flex: '0 0 auto' }} />
                   </button>
                 ))}
+              </div>
+            </Card>
+          )}
+
+          {patients.length > 0 && (
+            <Card>
+              <div className="card-eyebrow" style={{ marginBottom: 6 }}><Icon name="signal" size={14} /> Who needs a nudge</div>
+              <p className="muted" style={{ margin: '0 0 16px', fontSize: 'var(--text-sm)' }}>{needNudge > 0 ? `${needNudge} ${needNudge === 1 ? 'patient hasn’t' : 'patients haven’t'} logged exercises in a while — a quick message goes a long way.` : 'Everyone’s been keeping up. Nice work.'}</p>
+              <div className="col" style={{ gap: 8 }}>
+                {adherence.map((x) => { const a = ADH[x.status]; return (
+                  <button key={x.pt.uid} className="pt-ex-row" style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }} onClick={() => setSelUid(x.pt.uid)}>
+                    <Avatar name={x.pt.name || 'Patient'} size="sm" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-strong)', fontSize: 'var(--text-sm)' }}>{x.pt.name || 'Patient'}</div>
+                      <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>{x.days == null ? 'No sessions logged yet' : x.days === 0 ? 'Last session today' : `Last session ${x.days} ${x.days === 1 ? 'day' : 'days'} ago`} · {x.wk} this week</div>
+                    </div>
+                    <span className="fb-badge" style={{ color: a.color, background: `color-mix(in srgb, ${a.color} 14%, var(--surface))`, flex: '0 0 auto' }}>{a.label}</span>
+                    <Icon name="chevron-right" size={16} style={{ color: 'var(--text-subtle)', flex: '0 0 auto' }} />
+                  </button>
+                ); })}
               </div>
             </Card>
           )}
