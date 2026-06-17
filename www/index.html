@@ -477,12 +477,13 @@ function emptyAccount({ name, email, mode } = {}) {
 }
 // A friendly, shareable connection code for a therapist, e.g. "SUNNY-PT-4821".
 function genCode(clinic) {
-  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  // Clinic-name prefix + 5 random chars (no ambiguous 0/O/1/I) = ~33M combos per prefix,
+  // so two therapists at the same clinic — or clinics with the same name — get different codes.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const base = String(clinic || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
   let rand = '';
-  for (let i = 0; i < 4; i++) rand += letters[Math.floor(Math.random() * letters.length)];
-  const num = String(100 + Math.floor(Math.random() * 900));
-  return (base ? base : rand) + '-' + num;
+  for (let i = 0; i < 5; i++) rand += chars[Math.floor(Math.random() * chars.length)];
+  return (base || 'CLINIC') + '-' + rand;
 }
 function humanizeAuthError(e) {
   const c = (e && e.code) || '';
@@ -658,7 +659,14 @@ function StoreProvider({ children }) {
       if (!data && window.__btsTherapistSignup) {
         const clinic = window.__btsTherapistSignup.clinic || ((user.name || acct.name) ? `${(user.name || acct.name)}` : 'Your clinic');
         window.__btsTherapistSignup = null;
-        const code = genCode(clinic);
+        // Guarantee the code isn't already taken (regenerate on the rare collision).
+        let code = genCode(clinic);
+        for (let i = 0; i < 6; i++) {
+          let existing = null;
+          try { existing = await backend.loadLink(code); } catch (e) {}
+          if (!existing) break;
+          code = genCode(clinic);
+        }
         acct = { ...acct, role: 'therapist', clinic, code, onboarded: true };
         try { await backend.saveLink(code, { code, therapistUid: user.uid, therapistName: user.name || acct.name, clinic, createdAt: Date.now(), patients: {} }); } catch (e) {}
         try { await backend.saveData(user.uid, acct); } catch (e) {}
@@ -3640,8 +3648,6 @@ function PatientPanel({ p, api, ping }) {
 
       <WeeklyCheckin p={p} />
 
-      <RoadBack milestones={p.milestones || []} onUpdate={(list) => api.ptSetMilestones(p.uid, list)} ownerName={(p.name || 'Patient').split(' ')[0]} injuryLabel={p.injuryLabel} />
-
       <Card>
         <div className="card-head" style={{ marginBottom: 14 }}>
           <div className="card-eyebrow" style={{ margin: 0 }}><Icon name="dumbbell" size={14} /> Assigned exercises</div>
@@ -3692,6 +3698,8 @@ function PatientPanel({ p, api, ping }) {
           ))}
         </div>
       </Card>
+
+      <RoadBack milestones={p.milestones || []} onUpdate={(list) => api.ptSetMilestones(p.uid, list)} ownerName={(p.name || 'Patient').split(' ')[0]} injuryLabel={p.injuryLabel} />
     </div>
   );
 }
