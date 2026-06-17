@@ -1300,29 +1300,6 @@ async function cancelNativeReminders() {
   if (LN) { try { await LN.cancel({ notifications: Array.from({ length: 6 }).map((_, i) => ({ id: 41 + i })) }); } catch (e) {} }
 }
 
-// Read today's steps from Apple Health / Google Fit via a health plugin (native only).
-async function readNativeSteps() {
-  if (!isNative()) return null;
-  const H = nativePlugin('Health') || nativePlugin('HealthKit') || nativePlugin('CapacitorHealthkit') || nativePlugin('HealthConnect');
-  if (!H) return null;
-  try {
-    const start = new Date(); start.setHours(0, 0, 0, 0);
-    const end = new Date();
-    // Request read access (API name varies a little by plugin; we try the common ones).
-    if (H.requestAuthorization) await H.requestAuthorization({ read: ['steps', 'HKQuantityTypeIdentifierStepCount'], write: [] });
-    else if (H.requestPermissions) await H.requestPermissions({ permissions: ['steps'] });
-    const q = await (H.queryAggregated ? H.queryAggregated({ startDate: start.toISOString(), endDate: end.toISOString(), dataType: 'steps', bucket: 'day' })
-      : H.query ? H.query({ startDate: start.toISOString(), endDate: end.toISOString(), dataType: 'steps', limit: 0 })
-      : null);
-    if (!q) return null;
-    let steps = 0;
-    if (typeof q.value === 'number') steps = q.value;
-    else if (Array.isArray(q.aggregatedData)) steps = q.aggregatedData.reduce((a, d) => a + (d.value || 0), 0);
-    else if (Array.isArray(q.resultData)) steps = q.resultData.reduce((a, d) => a + (d.value || 0), 0);
-    else if (Array.isArray(q)) steps = q.reduce((a, d) => a + (d.value || 0), 0);
-    return { steps: Math.round(steps) };
-  } catch (e) { return null; }
-}
 
 /* ===================================================================== *
  *  LANDING PAGE
@@ -1970,10 +1947,6 @@ function Home() {
   const entry = account.journal[iso];
   const [mood, setMood] = useState(entry ? entry.mood : null);
   const [toast, setToast] = useState(null);
-  const [steps, setSteps] = useState(null);
-  const [healthBusy, setHealthBusy] = useState(false);
-  useEffect(() => { if (isNative()) readNativeSteps().then((r) => { if (r) setSteps(r.steps); }); }, []);
-  const connectHealth = async () => { setHealthBusy(true); const r = await readNativeSteps(); setHealthBusy(false); if (r) setSteps(r.steps); };
 
   const streak = streakOf(account.journal);
   const progress = account.progress[iso] || {};
@@ -2033,22 +2006,6 @@ function Home() {
           ) : (
             <p className="muted" style={{ margin:'14px 0 0', fontSize:'var(--text-sm)' }}>Tap a face, it takes a second, and it’s just for you.</p>
           )}
-        </Card>
-
-        <Card>
-          <div className="row" style={{ gap:14, flexWrap:'wrap', justifyContent:'space-between', alignItems:'center' }}>
-            <div className="row" style={{ gap:14 }}>
-              <span className="report-ic" style={{ background:'var(--grad-sunrise)', flex:'0 0 auto' }}><Icon name="footprints" size={22}/></span>
-              <div>
-                <div className="card-eyebrow" style={{ margin:0 }}><Icon name="activity" size={14}/> Today’s movement</div>
-                {steps != null
-                  ? <div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-2xl)', color:'var(--text-strong)', lineHeight:1.1 }}>{steps.toLocaleString()} <span style={{ fontSize:'var(--text-md)', color:'var(--text-muted)', fontWeight:600 }}>steps</span></div>
-                  : <div className="muted" style={{ fontSize:'var(--text-sm)', maxWidth:'34ch' }}>{isNative() ? 'Connect Apple Health or Google Fit to see your steps here.' : 'Steps sync from Apple Health / Google Fit in the phone app.'}</div>}
-              </div>
-            </div>
-            {isNative() && steps == null && <Button variant="secondary" size="sm" disabled={healthBusy} onClick={connectHealth} iconLeft={<Icon name="heart" size={15}/>}>{healthBusy ? 'Connecting…' : 'Connect'}</Button>}
-            {steps != null && <Badge tone="sage" dot>Synced today</Badge>}
-          </div>
         </Card>
 
         <div className="home-grid">
