@@ -2323,7 +2323,7 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, onPe
         </div>
         <div className="row" style={{ gap:2, flex:'0 0 auto' }}>
           {onDuplicate && <button className="icon-btn" title="Duplicate as my own variant" onClick={onDuplicate}><Icon name="copy" size={15}/></button>}
-          {!assigned && onGraduate && <button className="icon-btn" title="I’ve mastered this — graduate it" onClick={onGraduate} style={{ color:'var(--sage-600)' }}><Icon name="trophy" size={15}/></button>}
+          {!assigned && onGraduate && <button title="I’ve mastered this — graduate it" onClick={onGraduate} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'5px 9px', borderRadius:'var(--radius-pill)', border:'1px solid var(--border)', background:'var(--sage-50)', color:'var(--sage-600)', fontSize:'var(--text-xs)', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}><Icon name="trophy" size={12}/> Graduate</button>}
           {assigned
             ? <span title="Assigned by your PT" style={{ display:'inline-flex', color:'var(--text-subtle)', padding:8 }}><Icon name="lock" size={15}/></span>
             : <button className="icon-btn" title="Remove" onClick={onRemove}><Icon name="x" size={16}/></button>}
@@ -2928,27 +2928,82 @@ function MoodTrend({ journal }) {
     </div>
   );
 }
-function MoodCalendar({ journal }) {
-  const dates = Object.keys(journal).sort();
-  if (!dates.length) return null;
-  const first = fromISO(dates[0]); const last = today();
-  // start grid on the Sunday on/before first entry
-  const start = addDays(first, -first.getDay());
+// Tap any day to see that day's journal entry + the exercises you did; page back/forward by month.
+function MoodCalendar({ account, ptPatient }) {
+  const journal = account.journal || {};
+  const sessions = account.sessions || {};
+  const progress = account.progress || {};
+  const exMap = { ...EXERCISES, ...(account.customEx || {}), ...((ptPatient && ptPatient.customEx) || {}) };
+  const allDates = Object.keys(journal).concat(Object.keys(sessions)).sort();
+  const firstDate = fromISO(allDates[0] || todayISO());
+  const t = today();
+  const [view, setView] = useState({ y: t.getFullYear(), m: t.getMonth() });
+  const [sel, setSel] = useState(todayISO());
+
+  const firstOfMonth = new Date(view.y, view.m, 1);
+  const startPad = firstOfMonth.getDay();
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
   const cells = [];
-  let cur = start;
-  while (cur <= last) { cells.push(toISO(cur)); cur = addDays(cur, 1); }
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(toISO(new Date(view.y, view.m, d)));
+  const monthLabel = firstOfMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const atCurrentMonth = view.y === t.getFullYear() && view.m === t.getMonth();
+  const atFirstMonth = view.y < firstDate.getFullYear() || (view.y === firstDate.getFullYear() && view.m <= firstDate.getMonth());
+  const prev = () => setView((v) => { const m = v.m - 1; return m < 0 ? { y: v.y - 1, m: 11 } : { y: v.y, m }; });
+  const next = () => setView((v) => { const m = v.m + 1; return m > 11 ? { y: v.y + 1, m: 0 } : { y: v.y, m }; });
+
+  const e = sel && journal[sel];
+  const s = sel && sessions[sel];
+  const dayProg = (sel && progress[sel]) || {};
+  const exNames = Object.keys(dayProg).filter((id) => (dayProg[id] || 0) > 0).map((id) => exMap[id] && exMap[id].name).filter(Boolean);
+
   return (
     <div>
-      <div className="cal-grid" style={{ marginBottom:6 }}>{DOW.map((d)=><div key={d} className="cal-cell" style={{ aspectRatio:'auto', fontWeight:700, color:'var(--text-subtle)', fontSize:10 }}>{d[0]}</div>)}</div>
-      <div className="cal-grid">{cells.map((iso) => {
-        const e = journal[iso]; const isT = iso === todayISO();
-        return <div key={iso} className="cal-cell" title={e ? `${shortDate(iso)} · ${MOOD_LABELS[e.mood-1]}` : shortDate(iso)}
-          style={{ background: e ? moodColor(e.mood) : 'var(--surface-sunken)', color: e ? '#fff' : 'var(--text-subtle)',
-            border: isT ? '2px solid var(--text-strong)' : '1px solid var(--border)', fontWeight: e ? 700 : 400 }}>{fromISO(iso).getDate()}</div>;
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <button className="icon-btn" onClick={prev} disabled={atFirstMonth} title="Previous month" style={{ opacity: atFirstMonth ? 0.35 : 1 }}><Icon name="chevron-left" size={16} /></button>
+        <span style={{ fontWeight: 700, color: 'var(--text-strong)', fontSize: 'var(--text-sm)' }}>{monthLabel}</span>
+        <button className="icon-btn" onClick={next} disabled={atCurrentMonth} title="Next month" style={{ opacity: atCurrentMonth ? 0.35 : 1 }}><Icon name="chevron-right" size={16} /></button>
+      </div>
+      <div className="cal-grid" style={{ marginBottom: 6 }}>{DOW.map((d) => <div key={d} className="cal-cell" style={{ aspectRatio: 'auto', fontWeight: 700, color: 'var(--text-subtle)', fontSize: 10 }}>{d[0]}</div>)}</div>
+      <div className="cal-grid">{cells.map((iso, idx) => {
+        if (!iso) return <div key={'b' + idx} className="cal-cell" style={{ background: 'transparent', border: 'none' }} />;
+        const je = journal[iso]; const hasSession = !!sessions[iso]; const isT = iso === todayISO(); const isSel = iso === sel; const future = iso > todayISO();
+        return (
+          <button key={iso} className="cal-cell" disabled={future} onClick={() => setSel(iso)}
+            style={{ position: 'relative', padding: 0, fontFamily: 'inherit', cursor: future ? 'default' : 'pointer', opacity: future ? 0.4 : 1,
+              background: je ? moodColor(je.mood) : 'var(--surface-sunken)', color: je ? '#fff' : 'var(--text-subtle)',
+              border: isSel ? '2px solid var(--brand)' : isT ? '2px solid var(--text-strong)' : '1px solid var(--border)', fontWeight: je ? 700 : 400 }}>
+            {fromISO(iso).getDate()}
+            {hasSession && <span style={{ position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: '50%', background: je ? 'rgba(255,255,255,0.92)' : 'var(--brand)' }} />}
+          </button>
+        );
       })}</div>
       <div className="legend">
-        {MOOD_LABELS.map((l,i)=><span key={l}><span style={{ background: MOOD_COLORS[i] }} />{l}</span>)}
-        <span><span style={{ background:'var(--surface-sunken)', border:'1px solid var(--border)' }} />No entry</span>
+        {MOOD_LABELS.map((l, i) => <span key={l}><span style={{ background: MOOD_COLORS[i] }} />{l}</span>)}
+        <span><span style={{ background: 'var(--surface-sunken)', border: '1px solid var(--border)' }} />No entry</span>
+        <span><span style={{ background: 'var(--brand)', width: 5, height: 5, borderRadius: '50%' }} />Did exercises</span>
+      </div>
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontWeight: 700, color: 'var(--text-strong)', marginBottom: 10 }}>{longDate(sel)}</div>
+        {!e && !s && <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>Nothing logged this day.</p>}
+        {e && (
+          <div style={{ marginBottom: s ? 14 : 0 }}>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: e.text || e.photo ? 8 : 0 }}>
+              <span className="fb-badge" style={{ color: '#fff', background: moodColor(e.mood) }}>{MOOD_LABELS[e.mood - 1]}</span>
+              {typeof e.pain === 'number' && <span className="fb-badge" style={{ color: painColor(e.pain * 2), background: `color-mix(in srgb, ${painColor(e.pain * 2)} 14%, var(--surface))` }}>pain {e.pain}/5</span>}
+              {e.win && <span className="fb-badge" style={{ color: 'var(--brand-soft-text)', background: 'var(--apricot-50)' }}><Icon name="star" size={12} /> {e.win}</span>}
+            </div>
+            {e.text && <p style={{ margin: '0 0 8px', fontSize: 'var(--text-sm)', color: 'var(--text-body)', lineHeight: 1.5 }}>{e.text}</p>}
+            {e.photo && <img src={e.photo} alt="journal" style={{ width: '100%', maxWidth: 220, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }} />}
+          </div>
+        )}
+        {s && (
+          <div className="row" style={{ gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--sage-50)', border: '1px solid var(--sage-100)', flexWrap: 'wrap' }}>
+            <Icon name="dumbbell" size={16} style={{ color: 'var(--sage-600)', flex: '0 0 auto' }} />
+            <span style={{ fontWeight: 600, color: 'var(--text-strong)', fontSize: 'var(--text-sm)' }}>{s.completed}/{s.total} exercises · {s.minutes} min{typeof s.pain === 'number' ? ` · pain ${s.pain}/10` : ''}</span>
+            {exNames.length > 0 && <span className="muted" style={{ fontSize: 'var(--text-xs)', flexBasis: '100%' }}>{exNames.join(' · ')}</span>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3105,7 +3160,7 @@ function Journey() {
         {total > 1 && (
           <div className="j-hero">
             <Card><div className="card-head" style={{ marginBottom:12 }}><div className="card-eyebrow"><Icon name="trending-up" size={14}/> Mood over time</div></div><MoodTrend journal={journal} /></Card>
-            <Card><div className="card-head" style={{ marginBottom:12 }}><div className="card-eyebrow"><Icon name="calendar" size={14}/> Every day you showed up</div></div><MoodCalendar journal={journal} /></Card>
+            <Card><div className="card-head" style={{ marginBottom:12 }}><div className="card-eyebrow"><Icon name="calendar" size={14}/> Every day you showed up</div></div><MoodCalendar account={account} ptPatient={ptPatient} /></Card>
           </div>
         )}
 
@@ -3519,10 +3574,11 @@ function PTExerciseRow({ p, e, api }) {
         <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>{e.target} · {e.type === 'hold' ? e.holdSec + 's hold' : e.reps + ' reps'} × {e.sets}{e.timesPerDay > 1 ? ` · ${e.timesPerDay}× a day` : ''}</div>
         {f && <span className="fb-badge" style={{ marginTop: 6, color: f.color, background: `color-mix(in srgb, ${f.color} 14%, var(--surface))` }}><Icon name={f.icon} size={12} /> Patient: {f.label.toLowerCase()}</span>}
       </div>
-      <div className="row" style={{ gap: 2, flex: '0 0 auto' }}>
+      <div className="row" style={{ gap: 6, flex: '0 0 auto', alignItems: 'center' }}>
         <button className="icon-btn" title={currentVideo ? 'Edit demo video' : 'Add a demo video'} onClick={() => { setVid(currentVideo); setVidOpen((o) => !o); }} style={currentVideo ? { color: 'var(--brand)' } : undefined}><Icon name="play" size={15} /></button>
-        <button className="icon-btn" title="Graduate — they’ve mastered this, move them on" onClick={() => { if (confirm(`Graduate ${(p.name||'them').split(' ')[0]} past “${e.name}”? It moves out of their plan into their graduated list.`)) api.ptGraduateExercise(p.uid, e.id, e.name); }} style={{ color: 'var(--sage-600)' }}><Icon name="trophy" size={15} /></button>
-        <button className="icon-btn" title="Remove" onClick={() => api.ptUnassignExercise(p.uid, e.id)}><Icon name="x" size={16} /></button>
+        <button title="They’ve mastered this — move them on" onClick={() => { if (confirm(`Graduate ${(p.name||'them').split(' ')[0]} past “${e.name}”? It moves out of their plan into their graduated list.`)) api.ptGraduateExercise(p.uid, e.id, e.name); }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border)', background: 'var(--sage-50)', color: 'var(--sage-600)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer' }}><Icon name="trophy" size={13} /> Graduate</button>
+        <button className="icon-btn" title="Remove from plan" onClick={() => api.ptUnassignExercise(p.uid, e.id)}><Icon name="x" size={16} /></button>
       </div>
       {vidOpen && (
         <div style={{ flexBasis: '100%', marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
