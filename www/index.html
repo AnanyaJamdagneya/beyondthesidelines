@@ -2301,6 +2301,7 @@ function SessionPlayer({ items, startProgress, onSetDone, onFeedback, onClose, o
 /* ---------- EXERCISES (PT session) ---------- */
 function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, onPerDay, assigned, feedback, onFeedback, rounds=0, onRound, reorderable, onDragStartItem, onDropItem, onDragEndItem, onDragOverItem, dragging, dragOver }) {
   const [open, setOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const th = THUMBS[ex.thumb] || THUMBS.quad;
   const dose = ex.type === 'hold' ? `${ex.holdSec}s hold` : `${ex.reps} reps`;
   const perDay = ex.timesPerDay || 1;
@@ -2308,6 +2309,8 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, onPe
   const roundsDone = Math.min(rounds || 0, perDay);
   const allRounds = roundsDone >= perDay;
   const isDone = multi ? allRounds : (done >= ex.sets);
+  const hasActions = !!(onPerDay || onDuplicate || (!assigned && onGraduate) || (!assigned && onRemove));
+  const actBtn = { display:'inline-flex', alignItems:'center', gap:5, padding:'7px 11px', borderRadius:'var(--radius-pill)', border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text-muted)', fontSize:'var(--text-xs)', fontWeight:700, cursor:'pointer' };
   return (
     <div className="ex-card" data-done={isDone ? 'true' : undefined}
       onDragOver={reorderable ? (e) => { e.preventDefault(); onDragOverItem && onDragOverItem(); } : undefined}
@@ -2315,60 +2318,57 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, onPe
       style={{ ...(dragging ? { opacity: 0.45 } : {}), ...(dragOver ? { boxShadow: '0 -3px 0 0 var(--brand) inset' } : {}) }}>
       <div className="ex-top">
         {reorderable && <span draggable onDragStart={(e) => { try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ex.id); } catch (er) {} onDragStartItem && onDragStartItem(); }} onDragEnd={() => onDragEndItem && onDragEndItem()} title="Drag to reorder" style={{ cursor: 'grab', color: 'var(--text-subtle)', display: 'inline-flex', alignSelf: 'center', padding: '4px 0', flex: '0 0 auto' }}><Icon name="grip" size={18} /></span>}
-        <span className="ex-thumb" style={{ background: th.grad }}><Icon name={th.icon} size={30} /></span>
+        <span className="ex-thumb" style={{ background: th.grad, width:54, height:54 }}><Icon name={th.icon} size={24} /></span>
         <div style={{ flex:1, minWidth:0 }}>
-          <h3 className="ex-name">{ex.name}{isDone && <Icon name="check-circle" size={18} style={{ color:'var(--sage-500)', display:'inline', verticalAlign:'-3px', marginLeft:8 }} />}</h3>
-          <div className="ex-target">{ex.target} · {ex.level}{assigned && <> · <span style={{ color:'var(--brand-soft-text)', fontWeight:600 }}>From your PT</span></>}</div>
-          <div className="ex-dose"><span><Icon name="repeat" size={15}/> {ex.sets} sets</span><span><Icon name="activity" size={15}/> {dose}</span><span><Icon name="clock" size={15}/> {ex.restSec}s rest</span></div>
+          <h3 className="ex-name" style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ex.name}</span>
+            {isDone && <Icon name="check-circle" size={17} style={{ color:'var(--sage-500)', flex:'0 0 auto' }} />}
+          </h3>
+          <div className="ex-target" style={{ marginTop:3 }}>{ex.sets} sets · {dose}{multi ? ` · ${perDay}× a day` : ''}{assigned && <span style={{ marginLeft:8, color:'var(--brand-soft-text)', fontWeight:700, fontSize:'var(--text-xs)' }}>From your PT</span>}</div>
         </div>
-        <div className="row" style={{ gap:2, flex:'0 0 auto' }}>
-          {onDuplicate && <button className="icon-btn" title="Duplicate as my own variant" onClick={onDuplicate}><Icon name="copy" size={15}/></button>}
-          {!assigned && onGraduate && <button title="I’ve mastered this — graduate it" onClick={onGraduate} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'5px 9px', borderRadius:'var(--radius-pill)', border:'1px solid var(--border)', background:'var(--sage-50)', color:'var(--sage-600)', fontSize:'var(--text-xs)', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}><Icon name="trophy" size={12}/> Graduate</button>}
-          {assigned
-            ? <span title="Assigned by your PT" style={{ display:'inline-flex', color:'var(--text-subtle)', padding:8 }}><Icon name="lock" size={15}/></span>
-            : <button className="icon-btn" title="Remove" onClick={onRemove}><Icon name="x" size={16}/></button>}
+        <div className="row" style={{ gap:4, flex:'0 0 auto', alignItems:'center' }}>
+          {assigned && <span title="Assigned by your PT" style={{ display:'inline-flex', color:'var(--text-subtle)' }}><Icon name="lock" size={14}/></span>}
+          {hasActions && <button className="icon-btn" title="Options" onClick={() => setActionsOpen((o)=>!o)} style={{ color: actionsOpen?'var(--brand)':'var(--text-subtle)' }}><Icon name="settings" size={16}/></button>}
         </div>
       </div>
-      {onPerDay && (
-        <div className="row" style={{ gap:10, alignItems:'center', padding:'0 18px 12px' }}>
-          <span className="muted" style={{ fontSize:'var(--text-sm)', fontWeight:600 }}>Times a day</span>
-          <div className="row" style={{ gap:8, alignItems:'center' }}>
-            <button className="icon-btn" onClick={() => onPerDay(Math.max(1, perDay - 1))} disabled={perDay <= 1} title="Fewer"><Icon name="minus" size={15}/></button>
-            <span style={{ minWidth:30, textAlign:'center', fontWeight:700, color:'var(--text-strong)' }}>{perDay}×</span>
-            <button className="icon-btn" onClick={() => onPerDay(Math.min(6, perDay + 1))} disabled={perDay >= 6} title="More"><Icon name="plus" size={15}/></button>
-          </div>
+      {actionsOpen && hasActions && (
+        <div className="row" style={{ gap:8, flexWrap:'wrap', alignItems:'center', padding:'0 18px 14px' }}>
+          {onPerDay && (
+            <div className="row" style={{ gap:6, alignItems:'center', marginRight:4 }}>
+              <span className="muted" style={{ fontSize:'var(--text-xs)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>Times/day</span>
+              <button className="icon-btn" onClick={() => onPerDay(Math.max(1, perDay - 1))} disabled={perDay <= 1} title="Fewer"><Icon name="minus" size={14}/></button>
+              <span style={{ minWidth:26, textAlign:'center', fontWeight:700, color:'var(--text-strong)', fontSize:'var(--text-sm)' }}>{perDay}×</span>
+              <button className="icon-btn" onClick={() => onPerDay(Math.min(6, perDay + 1))} disabled={perDay >= 6} title="More"><Icon name="plus" size={14}/></button>
+            </div>
+          )}
+          {onDuplicate && <button onClick={onDuplicate} style={actBtn}><Icon name="copy" size={13}/> Duplicate</button>}
+          {!assigned && onGraduate && <button onClick={onGraduate} style={{ ...actBtn, color:'var(--sage-600)' }}><Icon name="trophy" size={13}/> Graduate</button>}
+          {!assigned && onRemove && <button onClick={onRemove} style={{ ...actBtn, color:'#C0432B' }}><Icon name="x" size={13}/> Remove</button>}
         </div>
       )}
-      <div className="ex-sets">
-        <span className="muted" style={{ fontSize:'var(--text-sm)', fontWeight:600, marginRight:4 }}>Sets:</span>
-        {Array.from({ length: ex.sets }).map((_, i) => (
-          <button key={i} className="set-dot" data-on={i < done ? 'true' : undefined} onClick={() => onSet(i < done ? i : i + 1)}>{i < done ? <Icon name="check" size={16}/> : i + 1}</button>
-        ))}
-        <button onClick={() => setOpen((o) => !o)} className="auth-link" style={{ background:'none', border:'none', marginLeft:'auto', fontSize:'var(--text-sm)', display:'inline-flex', alignItems:'center', gap:5 }}>
+      <div className="row" style={{ gap:10, padding:'0 18px 18px', alignItems:'center', flexWrap:'wrap' }}>
+        {multi ? (
+          <div className="round-track" data-done={allRounds ? 'true' : undefined} style={{ margin:0, flex:1, minWidth:210 }}>
+            <Icon name="repeat" size={16} style={{ color: allRounds ? 'var(--sage-600)' : 'var(--brand)', flex:'0 0 auto' }}/>
+            <span style={{ fontWeight:600, color:'var(--text-strong)', fontSize:'var(--text-sm)' }}>{allRounds ? `All ${perDay} done` : `${roundsDone} of ${perDay} today`}</span>
+            <div className="row" style={{ gap:6, marginLeft:'auto' }}>
+              {Array.from({ length: perDay }).map((_, i) => (
+                <button key={i} className="set-dot" style={{ width:30, height:30, fontSize:'var(--text-xs)' }} data-on={i < roundsDone ? 'true' : undefined}
+                  onClick={() => onRound(i < roundsDone ? i : i + 1)} title={`Time ${i + 1}`}>{i < roundsDone ? <Icon name="check" size={13}/> : i + 1}</button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => onSet(isDone ? 0 : ex.sets)} title={isDone ? 'Tap to undo' : undefined}
+            style={{ flex:1, minWidth:150, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px', borderRadius:'var(--radius-md)', cursor:'pointer', fontWeight:700, fontSize:'var(--text-sm)',
+              border: isDone ? '1.5px solid var(--sage-500)' : '1.5px solid transparent', background: isDone ? 'var(--sage-50)' : 'var(--brand)', color: isDone ? 'var(--sage-600)' : '#fff' }}>
+            <Icon name={isDone ? 'check-circle' : 'check'} size={18}/> {isDone ? 'Done today' : 'Mark done'}
+          </button>
+        )}
+        <button onClick={() => setOpen((o) => !o)} className="auth-link" style={{ background:'none', border:'none', fontSize:'var(--text-sm)', display:'inline-flex', alignItems:'center', gap:5, flex:'0 0 auto' }}>
           {open ? 'Hide' : 'How to'} <Icon name={open ? 'chevron-down' : 'chevron-right'} size={15}/>
         </button>
       </div>
-      {!multi && (
-        <div style={{ padding:'0 18px 16px' }}>
-          <button onClick={() => onSet(isDone ? 0 : ex.sets)}
-            style={{ width:'100%', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px', borderRadius:'var(--radius-md)', cursor:'pointer', fontWeight:700, fontSize:'var(--text-sm)',
-              border: isDone ? '1.5px solid var(--sage-500)' : '1.5px solid transparent', background: isDone ? 'var(--sage-50)' : 'var(--brand)', color: isDone ? 'var(--sage-600)' : '#fff' }}>
-            <Icon name={isDone ? 'check-circle' : 'check'} size={18}/> {isDone ? 'Done today — tap to undo' : 'Mark done'}
-          </button>
-        </div>
-      )}
-      {multi && onRound && (
-        <div className="round-track" data-done={allRounds ? 'true' : undefined}>
-          <Icon name="repeat" size={16} style={{ color: allRounds ? 'var(--sage-600)' : 'var(--brand)', flex:'0 0 auto' }}/>
-          <span style={{ fontWeight:600, color:'var(--text-strong)', fontSize:'var(--text-sm)' }}>{allRounds ? `All ${perDay} done today` : `Do this ${perDay}× today`}</span>
-          <div className="row" style={{ gap:6, marginLeft:'auto' }}>
-            {Array.from({ length: perDay }).map((_, i) => (
-              <button key={i} className="set-dot" style={{ width:32, height:32, fontSize:'var(--text-xs)' }} data-on={i < roundsDone ? 'true' : undefined}
-                onClick={() => onRound(i < roundsDone ? i : i + 1)} title={`Mark time ${i + 1}`}>{i < roundsDone ? <Icon name="check" size={14}/> : i + 1}</button>
-            ))}
-          </div>
-        </div>
-      )}
       {isDone && onFeedback && (
         <div className="row" style={{ gap:8, flexWrap:'wrap', alignItems:'center', padding:'0 18px 16px' }}>
           <span className="muted" style={{ fontSize:'var(--text-sm)', fontWeight:600 }}>How did it feel?</span>
