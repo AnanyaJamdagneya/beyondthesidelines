@@ -189,6 +189,12 @@ const THUMBS = {
   back: { grad: 'linear-gradient(145deg,#DEEDDF,#95C29B)', icon: 'move' },
   wrist: { grad: 'linear-gradient(145deg,#FFE7D4,#FBAC7B)', icon: 'activity' },
   ankle: { grad: 'linear-gradient(145deg,#EEF6F8,#ACD7DF)', icon: 'footprints' },
+  breath: { grad: 'linear-gradient(145deg,#E3F0F4,#9FC9D6)', icon: 'leaf' },
+  ground: { grad: 'linear-gradient(145deg,#EAF1E9,#A9CBAD)', icon: 'feather' },
+  calm: { grad: 'linear-gradient(145deg,#ECEFFA,#AEB8E6)', icon: 'sun' },
+  heart: { grad: 'linear-gradient(145deg,#FCE6E0,#F2A38F)', icon: 'heart' },
+  write: { grad: 'linear-gradient(145deg,#FFF3E2,#F6CE92)', icon: 'feather' },
+  walk: { grad: 'linear-gradient(145deg,#EAF3EC,#A6CBAF)', icon: 'footprints' },
 };
 // Areas mirror the onboarding injury options, so a self-guided plan starts from
 // exercises that match what someone told us in setup.
@@ -320,6 +326,50 @@ const EXERCISES = {
     steps:['Rest the forearm on a table, hand off the edge, palm up, holding a light weight.','Curl the wrist up slowly.','Hold a moment at the top.','Lower slowly. Flip the palm down for the other side.'],
     cues:['Start very light','Move only the wrist','Slow and controlled'] },
 };
+/* ----- Mental wellness activities (same engine as exercises: do it, mark it done) ----- */
+const MENTAL_ACTIVITIES = {
+  boxbreath: { id:'boxbreath', name:'Box breathing', target:'Calms a racing body', area:'anxiety', cat:'Breathing', thumb:'breath', type:'hold', sets:1, holdSec:60, restSec:0, durationMin:4, level:'Calming', mental:true, doseLabel:'~4 min · 4 rounds',
+    summary:'A simple square of breath to settle a racing mind.',
+    steps:['Breathe in slowly through your nose for 4 counts.','Hold gently for 4 counts.','Breathe out through your mouth for 4 counts.','Hold for 4, then repeat for a few rounds.'],
+    cues:['Let your shoulders drop','If 4 feels long, try 3','Nothing to force, just notice the rhythm'] },
+  breath478: { id:'breath478', name:'4-7-8 breathing', target:'Eases you toward rest', area:'sleep', cat:'Breathing', thumb:'breath', type:'hold', sets:1, holdSec:60, restSec:0, durationMin:4, level:'Calming', mental:true, doseLabel:'~4 min',
+    summary:'A longer exhale tells your body it’s safe to wind down.',
+    steps:['Breathe in through your nose for 4 counts.','Hold for 7 counts.','Breathe out slowly through your mouth for 8 counts.','Repeat 3 to 4 times.'],
+    cues:['The exhale is the important part','Keep it gentle','Great right before bed'] },
+  ground54321: { id:'ground54321', name:'5-4-3-2-1 grounding', target:'Pulls you out of a spiral', area:'anxiety', cat:'Grounding', thumb:'ground', type:'reps', sets:1, reps:5, restSec:0, durationMin:3, level:'Anytime', mental:true, doseLabel:'5 senses',
+    summary:'Anchors you to right here when your mind races ahead.',
+    steps:['Name 5 things you can see.','4 things you can feel.','3 things you can hear.','2 you can smell, and 1 you can taste.'],
+    cues:['Say them out loud if you can','Go slow','There’s no wrong answer'] },
+  bodyscan: { id:'bodyscan', name:'Body scan', target:'Releases held tension', area:'stress', cat:'Mindfulness', thumb:'calm', type:'hold', sets:1, holdSec:90, restSec:0, durationMin:6, level:'Calming', mental:true, doseLabel:'~6 min',
+    summary:'Move your attention through your body and let each part soften.',
+    steps:['Sit or lie down comfortably.','Bring attention to your feet, notice and soften them.','Slowly move up: legs, belly, chest, shoulders, jaw.','Let each area relax a little as you pass through.'],
+    cues:['You’re noticing, not fixing','Tension is okay, just say hi to it','Breathe into tight spots'] },
+  pmr: { id:'pmr', name:'Muscle relaxation', target:'Discharges stress', area:'stress', cat:'Relaxation', thumb:'calm', type:'reps', sets:1, reps:6, restSec:0, durationMin:7, level:'Calming', mental:true, doseLabel:'6 muscle groups',
+    summary:'Tense, then release each muscle group to let the day drain out.',
+    steps:['Squeeze your fists for 5 seconds, then release.','Do the same with arms, then shoulders.','Then face, then legs, then feet.','Notice the warmth as each part lets go.'],
+    cues:['Tense, hold, release','Feel the difference after each','Skip anything that hurts'] },
+  braindump: { id:'braindump', name:'Brain dump', target:'Clears mental clutter', area:'focus', cat:'Journaling', thumb:'write', type:'hold', sets:1, holdSec:300, restSec:0, durationMin:5, level:'Anytime', mental:true, doseLabel:'~5 min',
+    summary:'Empty everything swirling in your head onto the page.',
+    steps:['Set a timer for 5 minutes.','Write down everything on your mind, no order, no editing.','Don’t stop to make it neat.','When it ends, circle the one thing that matters most.'],
+    cues:['Messy is the point','No one else reads this','One next step is enough'] },
+  gratitude: { id:'gratitude', name:'Three good things', target:'Shifts a low mood', area:'lowmood', cat:'Reflection', thumb:'heart', type:'reps', sets:1, reps:3, restSec:0, durationMin:3, level:'Anytime', mental:true, doseLabel:'3 things',
+    summary:'Train your attention to catch the small good, even on hard days.',
+    steps:['Think back over today.','Name 3 things that were okay or good, however small.','For each, note why it mattered to you.'],
+    cues:['Small counts','A warm drink counts','Hard days still have them'] },
+  mindwalk: { id:'mindwalk', name:'Mindful walk', target:'Lifts and resets', area:'lowmood', cat:'Movement', thumb:'walk', type:'hold', sets:1, holdSec:600, restSec:0, durationMin:10, level:'Anytime', mental:true, doseLabel:'~10 min',
+    summary:'A short walk where you tune into your senses instead of your thoughts.',
+    steps:['Step outside, or to a window, for about 10 minutes.','Notice your feet, the air, the sounds.','When your mind wanders, come back to what you can see.','Leave the phone if you can manage it.'],
+    cues:['Pace doesn’t matter','Around the block is plenty','Movement is the medicine'] },
+  worrywindow: { id:'worrywindow', name:'Worry window', target:'Contains anxious thoughts', area:'anxiety', cat:'CBT', thumb:'ground', type:'hold', sets:1, holdSec:600, restSec:0, durationMin:10, level:'Anytime', mental:true, doseLabel:'~10 min',
+    summary:'Give your worries one set time, so they stop running the whole day.',
+    steps:['Pick a 10 minute window.','Write down everything you’re worried about.','Mark each: can I do something about this, or not?','For the ones you can, jot one tiny next step. Then close the window.'],
+    cues:['Worries get a slot, not the day','Some you just set down','You can revisit tomorrow’s window'] },
+  selfkind: { id:'selfkind', name:'Self-kindness break', target:'Softens harsh self-talk', area:'lowmood', cat:'Reflection', thumb:'heart', type:'reps', sets:1, reps:3, restSec:0, durationMin:3, level:'Anytime', mental:true, doseLabel:'3 steps',
+    summary:'Talk to yourself the way you’d talk to a friend having a hard time.',
+    steps:['Name what’s hard: “this is a tough moment.”','Remind yourself: “hard moments are part of being human.”','Ask what you’d say to a friend feeling this, and say it to yourself.'],
+    cues:['You’re allowed to struggle','Kindness, not a fix','Hand on your heart if it helps'] },
+};
+Object.assign(EXERCISES, MENTAL_ACTIVITIES);
 const AREA_PLANS = {
   knee: ['quadset', 'slr', 'hamcurl', 'heelslide', 'balance'],
   ankle: ['anklecircles', 'ankleabc', 'calf', 'heelraise'],
@@ -327,6 +377,13 @@ const AREA_PLANS = {
   back: ['pelvictilt', 'catcow', 'birddog', 'kneechest'],
   hip: ['clam', 'bridge', 'sidelegraise', 'hipflexstretch'],
   wrist: ['wristflex', 'wristext', 'gripball', 'wristcurl'],
+  // mental wellness focuses
+  anxiety: ['boxbreath', 'ground54321', 'worrywindow'],
+  stress: ['bodyscan', 'pmr', 'braindump'],
+  lowmood: ['gratitude', 'mindwalk', 'selfkind'],
+  sleep: ['breath478', 'bodyscan', 'pmr'],
+  focus: ['braindump', 'boxbreath', 'worrywindow'],
+  mgeneral: ['boxbreath', 'ground54321', 'gratitude', 'mindwalk'],
 };
 const DEFAULT_PLAN = ['slr', 'wallsit', 'hamcurl', 'balance', 'stepup'];
 
@@ -379,6 +436,13 @@ const MILESTONE_PRESETS = {
   hip:      ['Weight-bear evenly', 'Walk without a limp', 'Climb a flight of stairs', 'Sit-to-stand easily', 'Light jog', 'Back to full activity'],
   wrist:    ['Bend the wrist fully', 'Grip everyday objects', 'Bear weight on my hand', 'Twist a handle or jar', 'Full strength back', 'Back to full activity'],
   other:    ['Pain under control', 'Daily tasks without help', 'Build my strength back', 'Return to exercise', 'Back to full activity'],
+  // mental wellness checkpoints
+  anxiety:  ['Notice anxiety without spiraling', 'Use a calming tool in the moment', 'Get through a hard day calmer', 'Do one thing anxiety told me not to', 'Feel steadier most days'],
+  stress:   ['Take real breaks in my day', 'Say no to one thing', 'Unclench at the end of the day', 'A full week feeling less stretched', 'Feel in control of my time'],
+  lowmood:  ['Get up on a hard morning', 'Do one small thing I enjoy', 'Reach out to someone', 'String together a few okay days', 'Feel more like myself'],
+  sleep:    ['Wind down without screens', 'Fall asleep easier', 'Sleep through the night', 'Wake up more rested', 'A steady sleep routine'],
+  focus:    ['Clear my head when it’s full', 'Do one thing at a time', 'Get through a day less scattered', 'Feel on top of things', 'Calm and focused most days'],
+  mgeneral: ['Check in with myself daily', 'Use a tool when I need it', 'More good days than hard ones', 'Feel steadier overall', 'Back to feeling like me'],
 };
 const mkMilestones = (key) => (MILESTONE_PRESETS[key] || MILESTONE_PRESETS.other).map((label, i) => ({ id: 'ms' + i + '_' + key, label, done: false, doneISO: null }));
 const GOAL_SUGGESTIONS = [
@@ -386,6 +450,27 @@ const GOAL_SUGGESTIONS = [
   'Get back to my sport', 'Stand long enough to cook dinner', 'Bend it without wincing',
   'Carry groceries on my own', 'Return to work',
 ];
+// --- Mental wellness track presets ---
+const MENTAL_FOCUSES = [
+  { key:'anxiety', label:'Anxiety & worry', sub:'Racing thoughts, on edge' },
+  { key:'stress', label:'Stress & burnout', sub:'Stretched thin, overwhelmed' },
+  { key:'lowmood', label:'Low mood', sub:'Down, flat, unmotivated' },
+  { key:'sleep', label:'Sleep & rest', sub:'Hard to wind down' },
+  { key:'focus', label:'Focus & overwhelm', sub:'Scattered, too much at once' },
+  { key:'mgeneral', label:'Something else', sub:'You’ll describe it' },
+];
+const MENTAL_GOAL_SUGGESTIONS = [
+  'Get through a day feeling calmer', 'Sleep through the night', 'Be kinder to myself',
+  'Reach out when I’m struggling', 'Take real breaks', 'Quiet the racing thoughts',
+  'Feel more like myself again', 'Have more good days than hard ones',
+];
+const MENTAL_TRIGGERS = [
+  'School or work pressure', 'Hard time sleeping', 'Big life change', 'Conflict with someone',
+  'Too much on my plate', 'Comparing myself to others', 'Health worries', 'Feeling alone',
+];
+// Which track an account is on, with a safe default for everyone who onboarded before this existed.
+const trackOf = (a) => (a && a.profile && a.profile.track) || 'physical';
+const isMental = (a) => trackOf(a) === 'mental';
 
 /* ===================================================================== *
  *  SEED DATA  (so every page feels alive after onboarding)
@@ -1637,6 +1722,7 @@ function Onboarding() {
   const startMode = account.mode || (joinCode ? 'center' : 'self');
 
   const [step, setStep] = useState(0);
+  const [track, setTrack] = useState('physical');
   const [injuryKey, setInjuryKey] = useState('knee');
   const [detail, setDetail] = useState('');
   const [side, setSide] = useState('');
@@ -1648,25 +1734,30 @@ function Onboarding() {
   const [mode, setMode] = useState(startMode);
   const [code, setCode] = useState(joinCode || '');
 
-  const injury = INJURIES.find((i) => i.key === injuryKey) || INJURIES[0];
-  const sided = ['knee','ankle','shoulder','hip','wrist'].includes(injuryKey);
+  const mental = track === 'mental';
+  const FOCUS_LIST = mental ? MENTAL_FOCUSES : INJURIES;
+  const injury = FOCUS_LIST.find((i) => i.key === injuryKey) || FOCUS_LIST[0];
+  const sided = !mental && ['knee','ankle','shoulder','hip','wrist'].includes(injuryKey);
+  const otherKey = mental ? 'mgeneral' : 'other';
+  // Switching track resets the focus selection to that track's first option.
+  const chooseTrack = (t) => { if (t === track) return; setTrack(t); setInjuryKey((t === 'mental' ? MENTAL_FOCUSES : INJURIES)[0].key); setSide(''); setConstraints([]); };
 
   const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const addGoal = (text) => { const t = text.trim(); if (t && !goals.includes(t)) setGoals([...goals, t]); setGoalInput(''); };
   const addMs = () => { const t = msInput.trim(); if (t) setMilestones([...milestones, { id: 'ms' + Date.now(), label: t, done: false, doneISO: null }]); setMsInput(''); };
-  // Seed the Road Back checkpoints from the chosen injury (re-seeds if they change injury).
+  // Seed the Road Back checkpoints from the chosen focus (re-seeds if they change it).
   useEffect(() => { setMilestones(mkMilestones(injuryKey)); }, [injuryKey]);
 
-  const STEPS = ['Welcome', 'Your injury', 'Your limits', 'Your goals', 'Your road back', 'How you’ll use it'];
+  const STEPS = ['Welcome', mental ? 'Your focus' : 'Your injury', mental ? "What's hard" : 'Your limits', 'Your goals', mental ? 'Your steps' : 'Your road back', 'How you’ll use it'];
   const pct = ((step + 1) / STEPS.length) * 100;
 
   const finish = () => {
     const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : '';
-    const injuryLabel = injury.key === 'other'
-      ? (detail.trim() || 'Recovery')
+    const injuryLabel = injury.key === otherKey
+      ? (detail.trim() || (mental ? 'Mental wellness' : 'Recovery'))
       : (side ? `${cap(side)} ${injury.label.toLowerCase()}` : injury.label);
     const profile = {
-      injuryKey, injuryLabel,
+      injuryKey, injuryLabel, track,
       side, detail, phase: 'Getting started', startISO: todayISO(),
       constraints,
     };
@@ -1699,10 +1790,21 @@ function Onboarding() {
           {step === 1 && (
             <div>
               <span className="ob-eyebrow"><Icon name="activity" size={14}/> Step 1 of 5</span>
-              <h1 className="ob-title">What are you recovering from?</h1>
-              <p className="ob-sub">Pick the area closest to your injury. This shapes your starter exercises.</p>
+              <h1 className="ob-title">What brings you here?</h1>
+              <p className="ob-sub">Beyond the Sidelines works for the body and the mind. Pick what fits, you can have both over time.</p>
+              <div className="col" style={{ gap:12, marginBottom:22 }}>
+                <div className="mode-card" data-on={!mental} onClick={() => chooseTrack('physical')}>
+                  <span className="mode-ic" style={{ background:'var(--apricot-100)', color:'var(--apricot-700)' }}><Icon name="activity" size={22}/></span>
+                  <div><div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-md)', color:'var(--text-strong)' }}>Physical recovery</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>An injury, surgery, or pain you’re rehabbing.</div></div>
+                </div>
+                <div className="mode-card" data-on={mental} onClick={() => chooseTrack('mental')}>
+                  <span className="mode-ic" style={{ background:'var(--sky-100)', color:'var(--sky-700)' }}><Icon name="heart" size={22}/></span>
+                  <div><div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-md)', color:'var(--text-strong)' }}>Mental wellness</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>Anxiety, stress, low mood, sleep, and more.</div></div>
+                </div>
+              </div>
+              <div className="field-label" style={{ marginBottom:10 }}>{mental ? 'What are you focusing on?' : 'And the area closest to your injury?'}</div>
               <div className="chip-grid" style={{ marginBottom:18 }}>
-                {INJURIES.map((i) => (
+                {FOCUS_LIST.map((i) => (
                   <button key={i.key} className="chip" data-on={injuryKey === i.key} onClick={() => setInjuryKey(i.key)} style={{ flexDirection:'column', alignItems:'flex-start', gap:2, padding:'12px 18px' }}>
                     <span style={{ fontWeight:700 }}>{i.label}</span>
                     <span style={{ fontSize:'var(--text-xs)', fontWeight:500, opacity:0.8 }}>{i.sub}</span>
@@ -1717,17 +1819,17 @@ function Onboarding() {
                   </div>
                 </div>
               )}
-              <Input label={injuryKey === 'other' ? 'Describe your injury' : 'Any details? (optional)'} placeholder={injuryKey === 'other' ? 'e.g. lower back strain' : 'e.g. ACL reconstruction, 6 weeks post-op'} value={detail} onChange={(e)=>setDetail(e.target.value)} />
+              <Input label={injuryKey === otherKey ? (mental ? 'Describe it' : 'Describe your injury') : 'Any details? (optional)'} placeholder={mental ? 'e.g. exam-season anxiety' : (injuryKey === 'other' ? 'e.g. lower back strain' : 'e.g. ACL reconstruction, 6 weeks post-op')} value={detail} onChange={(e)=>setDetail(e.target.value)} />
               <div className="ob-foot"><Button variant="ghost" onClick={back} iconLeft={<Icon name="arrow-left" size={16}/>}>Back</Button><Button variant="primary" size="lg" onClick={next} iconRight={<Icon name="arrow-right" size={18}/>}>Continue</Button></div>
             </div>
           )}
           {step === 2 && (
             <div>
               <span className="ob-eyebrow"><Icon name="shield-check" size={14}/> Step 2 of 5</span>
-              <h1 className="ob-title">What are your limits right now?</h1>
-              <p className="ob-sub">Tap anything that’s true today. We’ll keep these front and center so you stay safe, nothing here pushes past them.</p>
+              <h1 className="ob-title">{mental ? 'What’s been weighing on you?' : 'What are your limits right now?'}</h1>
+              <p className="ob-sub">{mental ? 'Tap anything that fits, totally optional. It just helps us understand where you’re at.' : 'Tap anything that’s true today. We’ll keep these front and center so you stay safe, nothing here pushes past them.'}</p>
               <div className="chip-grid">
-                {CONSTRAINTS_PRESETS.map((c) => <button key={c} className="chip" data-on={constraints.includes(c)} onClick={() => toggle(constraints, setConstraints, c)}>{constraints.includes(c) && <Icon name="check" size={14}/>}{c}</button>)}
+                {(mental ? MENTAL_TRIGGERS : CONSTRAINTS_PRESETS).map((c) => <button key={c} className="chip" data-on={constraints.includes(c)} onClick={() => toggle(constraints, setConstraints, c)}>{constraints.includes(c) && <Icon name="check" size={14}/>}{c}</button>)}
               </div>
               <div className="ob-foot"><Button variant="ghost" onClick={back} iconLeft={<Icon name="arrow-left" size={16}/>}>Back</Button><Button variant="primary" size="lg" onClick={next} iconRight={<Icon name="arrow-right" size={18}/>}>Continue</Button></div>
             </div>
@@ -1748,7 +1850,7 @@ function Onboarding() {
               )}
               <div className="field-label" style={{ marginBottom:10 }}>Or start from a few ideas</div>
               <div className="chip-grid">
-                {GOAL_SUGGESTIONS.filter((g)=>!goals.includes(g)).map((g) => <button key={g} className="chip" onClick={() => addGoal(g)}><Icon name="plus" size={13}/>{g}</button>)}
+                {(mental ? MENTAL_GOAL_SUGGESTIONS : GOAL_SUGGESTIONS).filter((g)=>!goals.includes(g)).map((g) => <button key={g} className="chip" onClick={() => addGoal(g)}><Icon name="plus" size={13}/>{g}</button>)}
               </div>
               <div className="ob-foot"><Button variant="ghost" onClick={back} iconLeft={<Icon name="arrow-left" size={16}/>}>Back</Button><Button variant="primary" size="lg" onClick={next} iconRight={<Icon name="arrow-right" size={18}/>}>Continue</Button></div>
             </div>
@@ -1756,8 +1858,8 @@ function Onboarding() {
           {step === 4 && (
             <div>
               <span className="ob-eyebrow"><Icon name="footprints" size={14}/> Step 4 of 5</span>
-              <h1 className="ob-title">Your road back</h1>
-              <p className="ob-sub">These are the checkpoints between where you are now and back to normal. We’ve started you off, make them yours: remove any, or add your own.</p>
+              <h1 className="ob-title">{mental ? 'Your steps forward' : 'Your road back'}</h1>
+              <p className="ob-sub">{mental ? 'Small checkpoints between where you are now and feeling steadier. We’ve started you off, make them yours: remove any, or add your own.' : 'These are the checkpoints between where you are now and back to normal. We’ve started you off, make them yours: remove any, or add your own.'}</p>
               {milestones.length > 0 && (
                 <div className="col" style={{ gap:8, marginBottom:16 }}>
                   {milestones.map((m) => (
@@ -1777,15 +1879,15 @@ function Onboarding() {
             <div>
               <span className="ob-eyebrow"><Icon name="heart-handshake" size={14}/> Last step</span>
               <h1 className="ob-title">How will you use Beyond the Sidelines?</h1>
-              <p className="ob-sub">Either way works the same on your side. With a center, your exercise reports go to your PT, your journal always stays private.</p>
+              <p className="ob-sub">{mental ? 'Either way works the same on your side. If you have a provider with a code, your activity reports go to them, your journal always stays private.' : 'Either way works the same on your side. With a center, your exercise reports go to your PT, your journal always stays private.'}</p>
               <div className="col" style={{ gap:12 }}>
                 <div className="mode-card" data-on={mode === 'self'} onClick={() => setMode('self')}>
                   <span className="mode-ic" style={{ background:'var(--sage-100)', color:'var(--sage-700)' }}><Icon name="user" size={22}/></span>
-                  <div><div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-md)', color:'var(--text-strong)' }}>On my own</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>Just me and my recovery. No clinic attached.</div></div>
+                  <div><div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-md)', color:'var(--text-strong)' }}>On my own</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>{mental ? 'Just me and my own space to work on this.' : 'Just me and my recovery. No clinic attached.'}</div></div>
                 </div>
                 <div className="mode-card" data-on={mode === 'center'} onClick={() => setMode('center')}>
                   <span className="mode-ic" style={{ background:'var(--apricot-100)', color:'var(--apricot-700)' }}><Icon name="building" size={22}/></span>
-                  <div style={{ flex:1 }}><div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-md)', color:'var(--text-strong)' }}>Through my PT center</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>Send exercise reports to your therapist and get notes back.</div></div>
+                  <div style={{ flex:1 }}><div style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'var(--text-md)', color:'var(--text-strong)' }}>{mental ? 'Through my therapist or counselor' : 'Through my PT center'}</div><div className="muted" style={{ fontSize:'var(--text-sm)' }}>{mental ? 'Share your activity with a provider and get notes back.' : 'Send exercise reports to your therapist and get notes back.'}</div></div>
                 </div>
                 {mode === 'center' && (
                   <Input label="Center code" iconLeft={<Icon name="key" size={16}/>} placeholder="e.g. RIVER-2026" value={code} onChange={(e)=>setCode(e.target.value)} hint={code ? `Linking to: ${DEMO_CENTERS[code.toUpperCase()] || 'Your PT center'}` : 'Demo codes: RIVER-2026, SUMMIT-PT, BAYAREA'} />
@@ -1891,9 +1993,10 @@ function AppShell({ active, children }) {
   const msgs = (ptPatient && ptPatient.messages) || [];
   const lastMsg = msgs[msgs.length - 1];
   const msgUnread = account.mode === 'center' && lastMsg && lastMsg.from === 'therapist' && lastMsg.id !== account.lastMsgSeenId;
+  const mental = isMental(account);
   const nav = [
     { key:'today', label:'Today', icon:'home', path:'/today' },
-    { key:'exercises', label:'Exercises', icon:'dumbbell', path:'/exercises' },
+    { key:'exercises', label: mental ? 'Practices' : 'Exercises', icon: mental ? 'leaf' : 'dumbbell', path:'/exercises' },
     { key:'journal', label:'Journal', icon:'feather', path:'/journal' },
     { key:'journey', label:'Journey', icon:'sun', path:'/journey' },
   ];
@@ -2289,7 +2392,7 @@ function ExerciseCard({ ex, done, onSet, onRemove, onDuplicate, onGraduate, onPe
             <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ex.name}</span>
             {isDone && <Icon name="check-circle" size={17} style={{ color:'var(--sage-500)', flex:'0 0 auto' }} />}
           </h3>
-          <div className="ex-target" style={{ marginTop:3 }}>{ex.sets} sets · {dose}{multi ? ` · ${perDay}× a day` : ''}{assigned && <span style={{ marginLeft:8, color:'var(--brand-soft-text)', fontWeight:700, fontSize:'var(--text-xs)' }}>From your PT</span>}</div>
+          <div className="ex-target" style={{ marginTop:3 }}>{ex.mental ? `${ex.cat} · ${ex.doseLabel || ''}` : `${ex.sets} sets · ${dose}`}{!ex.mental && multi ? ` · ${perDay}× a day` : ''}{assigned && <span style={{ marginLeft:8, color:'var(--brand-soft-text)', fontWeight:700, fontSize:'var(--text-xs)' }}>From your provider</span>}</div>
         </div>
         <div className="row" style={{ gap:4, flex:'0 0 auto', alignItems:'center' }}>
           {assigned && <span title="Assigned by your PT" style={{ display:'inline-flex', color:'var(--text-subtle)' }}><Icon name="lock" size={14}/></span>}
@@ -2441,6 +2544,9 @@ function LibraryDrawer({ onClose, defaultArea }) {
 }
 function Exercises() {
   const { account, setSetDone, setRounds, removeExercise, sendReport, ptPatient, setFeedback, setPlanOrder, duplicateExercise, graduateExercise, setExerciseOverride } = useStore();
+  const mental = isMental(account);
+  const itemP = mental ? 'practices' : 'exercises';
+  const item1 = mental ? 'practice' : 'exercise';
   const iso = todayISO();
   const [drawer, setDrawer] = useState(false);
   const [play, setPlay] = useState(false);
@@ -2496,16 +2602,16 @@ function Exercises() {
     <AppShell active="exercises">
       <div className="shell">
         <div className="greeting">
-          <span className="r-eyebrow">Physical therapy</span>
-          <h2 className="greet-hello" style={{ marginTop:8 }}>Today’s exercises</h2>
-          <p className="greet-line">{total === 0 ? 'Add your exercises to build today’s session.' : doneAll ? 'Session done. That’s the work, be proud of it.' : `${total - completed} ${total - completed === 1 ? 'exercise' : 'exercises'} to go. Take them one at a time.`}</p>
+          <span className="r-eyebrow">{mental ? 'Daily practice' : 'Physical therapy'}</span>
+          <h2 className="greet-hello" style={{ marginTop:8 }}>{mental ? 'Today’s practices' : 'Today’s exercises'}</h2>
+          <p className="greet-line">{total === 0 ? `Add your ${itemP} to build today’s ${mental ? 'practice' : 'session'}.` : doneAll ? `${mental ? 'Practice done. That’s real care, be proud of it.' : 'Session done. That’s the work, be proud of it.'}` : `${total - completed} ${total - completed === 1 ? item1 : itemP} to go. Take them one at a time.`}</p>
         </div>
 
         <Card padding="clamp(20px,3vw,32px)">
           <div className="card-head">
             <div>
-              <div className="card-eyebrow"><Icon name="activity" size={14}/> Today’s session</div>
-              <h1 className="card-title" style={{ fontSize:'var(--text-2xl)' }}>{account.profile ? account.profile.injuryLabel : 'Your plan'} recovery</h1>
+              <div className="card-eyebrow"><Icon name="activity" size={14}/> {mental ? 'Today’s practice' : 'Today’s session'}</div>
+              <h1 className="card-title" style={{ fontSize:'var(--text-2xl)' }}>{account.profile ? account.profile.injuryLabel : 'Your plan'}{mental ? '' : ' recovery'}</h1>
               <div className="session-meta">
                 {total > 0
                   ? <><span className="session-stat"><Icon name="clipboard" size={15}/> {completed}/{total} done</span>
@@ -2514,11 +2620,11 @@ function Exercises() {
                 {account.profile && account.profile.phase && <span className="session-stat"><Icon name="trending-up" size={15}/> {account.profile.phase}</span>}
               </div>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => setDrawer(true)} iconLeft={<Icon name="plus" size={16}/>}>Add exercise</Button>
+            <Button variant="secondary" size="sm" onClick={() => setDrawer(true)} iconLeft={<Icon name="plus" size={16}/>}>{mental ? 'Add a practice' : 'Add exercise'}</Button>
           </div>
           {total > 0 && !doneAll && (
             <Button variant="primary" size="lg" full onClick={() => setPlay(true)} iconLeft={<Icon name="play" size={18}/>} style={{ marginTop:16 }}>
-              {completed > 0 ? 'Resume guided session' : 'Start guided session'}
+              {completed > 0 ? (mental ? 'Resume guided practice' : 'Resume guided session') : (mental ? 'Start guided practice' : 'Start guided session')}
             </Button>
           )}
           {total > 0 && (
@@ -2547,34 +2653,34 @@ function Exercises() {
         )}
         {doneAll && !alreadySent && (
           <Card>
-            <div className="card-eyebrow" style={{ marginBottom:6 }}><Icon name="check-circle" size={14}/> Session complete — quick check-in</div>
-            <h3 style={{ fontFamily:'var(--font-display)', margin:'0 0 4px', fontSize:'var(--text-xl)' }}>How did your body feel today?</h3>
-            <p className="muted" style={{ margin:'0 0 16px', fontSize:'var(--text-sm)' }}>{account.mode === 'center' ? `This goes to ${account.center} with your session — your journal stays private.` : 'We’ll track this on your journey over time.'}</p>
-            <div className="field-label" style={{ fontSize:'var(--text-sm)', marginBottom:10 }}>Pain level after these exercises</div>
+            <div className="card-eyebrow" style={{ marginBottom:6 }}><Icon name="check-circle" size={14}/> {mental ? 'Nice — quick check-in' : 'Session complete — quick check-in'}</div>
+            <h3 style={{ fontFamily:'var(--font-display)', margin:'0 0 4px', fontSize:'var(--text-xl)' }}>{mental ? 'How are you feeling now?' : 'How did your body feel today?'}</h3>
+            <p className="muted" style={{ margin:'0 0 16px', fontSize:'var(--text-sm)' }}>{account.mode === 'center' ? `This goes to ${account.center} with your ${mental ? 'check-in' : 'session'}, your journal stays private.` : 'We’ll track this on your journey over time.'}</p>
+            <div className="field-label" style={{ fontSize:'var(--text-sm)', marginBottom:10 }}>{mental ? 'How heavy does it feel right now?' : 'Pain level after these exercises'}</div>
             <div className="row" style={{ gap:6, flexWrap:'wrap' }}>
               {Array.from({ length: 11 }).map((_, n) => { const on = pain === n; const c = painColor(n); return (
-                <button key={n} onClick={() => setPain(n)} aria-label={`Pain ${n}`} style={{ width:38, height:38, borderRadius:'50%', border:`2px solid ${on ? c : 'var(--border)'}`, background: on ? c : 'var(--surface)', color: on ? '#fff' : 'var(--text-body)', fontWeight:700, fontSize:'var(--text-sm)', cursor:'pointer', transition:'all .15s' }}>{n}</button>
+                <button key={n} onClick={() => setPain(n)} aria-label={`${mental ? 'Level' : 'Pain'} ${n}`} style={{ width:38, height:38, borderRadius:'50%', border:`2px solid ${on ? c : 'var(--border)'}`, background: on ? c : 'var(--surface)', color: on ? '#fff' : 'var(--text-body)', fontWeight:700, fontSize:'var(--text-sm)', cursor:'pointer', transition:'all .15s' }}>{n}</button>
               ); })}
             </div>
-            <div className="row" style={{ justifyContent:'space-between', marginTop:7 }}><span className="muted" style={{ fontSize:'var(--text-xs)' }}>No pain</span><span className="muted" style={{ fontSize:'var(--text-xs)' }}>Worst pain</span></div>
+            <div className="row" style={{ justifyContent:'space-between', marginTop:7 }}><span className="muted" style={{ fontSize:'var(--text-xs)' }}>{mental ? 'Light' : 'No pain'}</span><span className="muted" style={{ fontSize:'var(--text-xs)' }}>{mental ? 'Heavy' : 'Worst pain'}</span></div>
             <div className="field-label" style={{ fontSize:'var(--text-sm)', margin:'18px 0 8px' }}>{account.mode === 'center' ? 'A quick note for your PT' : 'A quick note to yourself'} <span className="muted" style={{ fontWeight:500 }}>(optional)</span></div>
-            <Textarea value={sessNote} onChange={(e) => setSessNote(e.target.value)} placeholder="e.g. Left knee twinged on the lunges, everything else felt good." rows={2} maxLength={400} />
-            <Button variant="primary" full onClick={finish} disabled={pain == null} style={{ marginTop:14 }} iconRight={<Icon name="arrow-right" size={17}/>}>{account.mode === 'center' ? `Send check-in to ${account.center}` : 'Save session'}</Button>
-            {pain == null && <p className="muted center" style={{ fontSize:'var(--text-xs)', margin:'10px 0 0' }}>Tap a pain level to {account.mode === 'center' ? 'send' : 'save'}.</p>}
+            <Textarea value={sessNote} onChange={(e) => setSessNote(e.target.value)} placeholder={mental ? 'e.g. the breathing helped, still a bit wound up.' : 'e.g. Left knee twinged on the lunges, everything else felt good.'} rows={2} maxLength={400} />
+            <Button variant="primary" full onClick={finish} disabled={pain == null} style={{ marginTop:14 }} iconRight={<Icon name="arrow-right" size={17}/>}>{account.mode === 'center' ? `Send check-in to ${account.center}` : (mental ? 'Save check-in' : 'Save session')}</Button>
+            {pain == null && <p className="muted center" style={{ fontSize:'var(--text-xs)', margin:'10px 0 0' }}>Tap a {mental ? 'level' : 'pain level'} to {account.mode === 'center' ? 'send' : 'save'}.</p>}
           </Card>
         )}
 
         <div className="col" style={{ gap:14 }}>
           {items.length === 0 && (
             <Card variant="soft" className="center" padding="clamp(28px,5vw,44px)">
-              <span className="report-ic" style={{ margin:'0 auto 14px' }}><Icon name="dumbbell" size={22}/></span>
-              <h3 style={{ fontFamily:'var(--font-display)', margin:'0 0 8px', fontSize:'var(--text-lg)' }}>{account.mode === 'center' ? 'No exercises assigned yet' : 'Your plan is yours to build'}</h3>
+              <span className="report-ic" style={{ margin:'0 auto 14px' }}><Icon name={mental ? 'leaf' : 'dumbbell'} size={22}/></span>
+              <h3 style={{ fontFamily:'var(--font-display)', margin:'0 0 8px', fontSize:'var(--text-lg)' }}>{account.mode === 'center' ? `No ${itemP} assigned yet` : 'Your plan is yours to build'}</h3>
               <p className="muted" style={{ margin:'0 auto 18px', maxWidth:'40ch' }}>
                 {account.mode === 'center'
-                  ? 'Your PT hasn’t added exercises yet, or you can add your own to get going.'
-                  : `Add exercises that fit where you are${areaLabel ? `, we’ll start you on ${areaLabel.toLowerCase()} moves` : ''}. You can add anything, anytime.`}
+                  ? `Your provider hasn’t added ${itemP} yet, or you can add your own to get going.`
+                  : `Add ${itemP} that fit where you are. You can add anything, anytime.`}
               </p>
-              <Button variant="primary" onClick={() => setDrawer(true)} iconLeft={<Icon name="plus" size={17}/>}>Add exercises</Button>
+              <Button variant="primary" onClick={() => setDrawer(true)} iconLeft={<Icon name="plus" size={17}/>}>{mental ? 'Add practices' : 'Add exercises'}</Button>
             </Card>
           )}
           {items.length > 1 && ownItems.length > 1 && <p className="muted" style={{ margin:'2px 0 -4px', fontSize:'var(--text-xs)' }}><Icon name="grip" size={12} style={{ display:'inline', verticalAlign:'-2px' }} /> Drag the handle to reorder your exercises.</p>}
@@ -2757,7 +2863,7 @@ function useIsPhone() {
   return phone;
 }
 // Pain over time from the post-session check-ins (0–10). Lower is better, so a downward line = good.
-function PainTrend({ sessions }) {
+function PainTrend({ sessions, mental }) {
   const isPhone = useIsPhone();
   const dates = Object.keys(sessions || {}).filter((d) => typeof sessions[d].pain === 'number').sort();
   if (dates.length < 2) return null;
@@ -2777,8 +2883,8 @@ function PainTrend({ sessions }) {
   const delta = pts[pts.length - 1] - pts[0];
   const trendKey = delta <= -1 ? 'down' : delta >= 1 ? 'up' : 'steady';
   const TREND = {
-    down: { icon: 'trending-down', label: 'Pain easing', color: '#6BA368', bg: 'color-mix(in srgb, #6BA368 12%, var(--surface))' },
-    up: { icon: 'trending-up', label: 'Pain rising', color: '#D85C43', bg: 'color-mix(in srgb, #D85C43 12%, var(--surface))' },
+    down: { icon: 'trending-down', label: mental ? 'Lifting' : 'Pain easing', color: '#6BA368', bg: 'color-mix(in srgb, #6BA368 12%, var(--surface))' },
+    up: { icon: 'trending-up', label: mental ? 'Heavier' : 'Pain rising', color: '#D85C43', bg: 'color-mix(in srgb, #D85C43 12%, var(--surface))' },
     steady: { icon: 'activity', label: 'Holding steady', color: 'var(--text-muted)', bg: 'var(--surface-sunken)' },
   }[trendKey];
   const W = isPhone ? 360 : 520, H = isPhone ? 220 : 150, padX = 30, padY = isPhone ? 28 : 24;
@@ -2793,7 +2899,7 @@ function PainTrend({ sessions }) {
     <div>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
         <span className="fb-badge" style={{ color: TREND.color, background: TREND.bg }}><Icon name={TREND.icon} size={14} /> {TREND.label}</span>
-        <span className="muted" style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>{byWeek ? 'by week' : 'by day'} · 0 none → 10 worst</span>
+        <span className="muted" style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>{byWeek ? 'by week' : 'by day'} · {mental ? '0 light → 10 heavy' : '0 none → 10 worst'}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
         <defs><linearGradient id="paintrend" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#D85C43" stopOpacity="0.18" /><stop offset="100%" stopColor="#D85C43" stopOpacity="0" /></linearGradient></defs>
@@ -2973,7 +3079,7 @@ function MoodCalendar({ account, ptPatient }) {
     </div>
   );
 }
-function RoadBack({ milestones, onUpdate, injuryLabel, ownerName, editable = true }) {
+function RoadBack({ milestones, onUpdate, injuryLabel, ownerName, editable = true, mental = false }) {
   const [add, setAdd] = useState('');
   const list = milestones || [];
   const N = list.length;
@@ -2992,8 +3098,8 @@ function RoadBack({ milestones, onUpdate, injuryLabel, ownerName, editable = tru
   const addOne = () => { const t = add.trim(); if (!t) return; onUpdate([...list, { id: 'ms' + Date.now(), label: t, done: false, doneISO: null }]); setAdd(''); };
   return (
     <Card>
-      <div className="card-eyebrow" style={{ marginBottom: 4 }}><Icon name="footprints" size={14} /> {ownerName ? `${ownerName}’s road back` : 'Your road back'}</div>
-      <h3 style={{ fontFamily: 'var(--font-display)', margin: '0 0 2px', fontSize: 'var(--text-xl)' }}>{allDone ? 'Back in the game!' : N === 0 ? 'Set your checkpoints' : 'The road back to full activity'}</h3>
+      <div className="card-eyebrow" style={{ marginBottom: 4 }}><Icon name="footprints" size={14} /> {ownerName ? `${ownerName}’s ${mental ? 'steps forward' : 'road back'}` : (mental ? 'Your steps forward' : 'Your road back')}</div>
+      <h3 style={{ fontFamily: 'var(--font-display)', margin: '0 0 2px', fontSize: 'var(--text-xl)' }}>{allDone ? (mental ? 'Look how far you’ve come!' : 'Back in the game!') : N === 0 ? 'Set your checkpoints' : (mental ? 'Your steps forward' : 'The road back to full activity')}</h3>
       <p className="muted" style={{ margin: '0 0 14px', fontSize: 'var(--text-sm)' }}>{injuryLabel ? injuryLabel + ' · ' : ''}{N === 0 ? 'Add the checkpoints to work toward.' : `${doneCount} of ${N} checkpoints reached`}</p>
       {N > 0 && (
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', marginBottom: 10 }}>
@@ -3031,6 +3137,7 @@ function RoadBack({ milestones, onUpdate, injuryLabel, ownerName, editable = tru
 }
 function Journey() {
   const { account, markNotesRead, toggleGoal, careNotes, addPrize, togglePrize, removePrize, updateMilestones, ptPatient } = useStore();
+  const mental = isMental(account);
   const { journal } = account;
   const roadMilestones = (ptPatient && ptPatient.milestones) ? ptPatient.milestones : (account.milestones || []);
   const graduated = (ptPatient && ptPatient.graduated) ? ptPatient.graduated : (account.graduated || []);
@@ -3073,14 +3180,14 @@ function Journey() {
           <p className="greet-line">{account.profile ? account.profile.injuryLabel + ' · ' : ''}{total === 0 ? 'No entries yet, your first check-in fills this in.' : `${total} entries logged · ${sessionsLogged} sessions done`}</p>
         </div>
 
-        <RoadBack milestones={roadMilestones} onUpdate={updateMilestones} injuryLabel={account.profile && account.profile.injuryLabel} />
+        <RoadBack milestones={roadMilestones} onUpdate={updateMilestones} injuryLabel={account.profile && account.profile.injuryLabel} mental={mental} />
 
         {(sessionsLogged > 0 || graduated.length > 0 || activeExercises > 0) && (
           <Card>
-            <div className="card-eyebrow" style={{ marginBottom:14 }}><Icon name="dumbbell" size={14}/> Your PT progress</div>
+            <div className="card-eyebrow" style={{ marginBottom:14 }}><Icon name={mental ? 'leaf' : 'dumbbell'} size={14}/> {mental ? 'Your progress' : 'Your PT progress'}</div>
             <div className="stat-grid" style={{ marginBottom: graduated.length ? 18 : 0 }}>
-              <div className="stat-card"><div className="stat-num">{sessionsLogged}</div><div className="stat-label">sessions done</div></div>
-              <div className="stat-card"><div className="stat-num">{graduated.length}</div><div className="stat-label">exercises graduated</div></div>
+              <div className="stat-card"><div className="stat-num">{sessionsLogged}</div><div className="stat-label">{mental ? 'check-ins done' : 'sessions done'}</div></div>
+              <div className="stat-card"><div className="stat-num">{graduated.length}</div><div className="stat-label">{mental ? 'tools mastered' : 'exercises graduated'}</div></div>
               <div className="stat-card"><div className="stat-num">{activeExercises}</div><div className="stat-label">in your plan now</div></div>
             </div>
             {graduated.length > 0 ? (
@@ -3130,7 +3237,7 @@ function Journey() {
         )}
 
         {Object.keys(account.sessions || {}).filter((d) => typeof account.sessions[d].pain === 'number').length > 1 && (
-          <Card><div className="card-head" style={{ marginBottom:12 }}><div className="card-eyebrow"><Icon name="activity" size={14}/> Pain over time</div></div><PainTrend sessions={account.sessions} /></Card>
+          <Card><div className="card-head" style={{ marginBottom:12 }}><div className="card-eyebrow"><Icon name="activity" size={14}/> {mental ? 'How heavy it’s felt' : 'Pain over time'}</div></div><PainTrend sessions={account.sessions} mental={mental} /></Card>
         )}
 
         <PhotoTimeline journal={journal} />
