@@ -585,6 +585,7 @@ function humanizeAuthError(e) {
     'auth/network-request-failed': 'Network problem, check your connection and try again.',
     'auth/operation-not-allowed': 'This sign-in method isn’t enabled in Firebase yet.',
     'no-reset': 'Password reset needs Firebase set up. In device-only mode, just create a new account.',
+    'no-apple': 'Apple sign-in is only available in the iPhone app.',
   };
   return map[c] || (e && e.message) || 'Something went wrong. Please try again.';
 }
@@ -622,6 +623,7 @@ const LocalBackend = {
     const u = { uid: rec.uid, email: rec.email, name: rec.name }; this._cb && this._cb(u); return u;
   },
   async signInGoogle() { throw mkErr('no-google'); },
+  async signInApple() { throw mkErr('no-apple'); },
   async resetPassword() { throw mkErr('no-reset'); },
   async signOut() { LS.set('bts.session', null); this._cb && this._cb(null); },
   async loadData(uid) { return LS.get('bts.data.' + uid, null); },
@@ -674,6 +676,21 @@ const FirebaseBackend = {
       return { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName || (res.user && res.user.displayName) || '' };
     }
     const cred = await _fa.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    return { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName || '' };
+  },
+  async signInApple() {
+    // Apple requires this once you offer any third-party sign-in. Native uses the Apple plugin
+    // to get a credential, then signs the JS SDK in with it so Firestore uses the same account.
+    if (isNative()) {
+      const FA = nativePlugin('FirebaseAuthentication');
+      if (!FA) throw mkErr('no-apple');
+      const res = await FA.signInWithApple();
+      const c = (res && res.credential) || {};
+      const acred = new firebase.auth.OAuthProvider('apple.com').credential({ idToken: c.idToken, rawNonce: c.nonce });
+      const cred = await _fa.signInWithCredential(acred);
+      return { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName || (res.user && res.user.displayName) || '' };
+    }
+    const cred = await _fa.signInWithPopup(new firebase.auth.OAuthProvider('apple.com'));
     return { uid: cred.user.uid, email: cred.user.email, name: cred.user.displayName || '' };
   },
   async signOut() { await _fa.signOut(); },
@@ -836,6 +853,12 @@ function StoreProvider({ children }) {
     async signInGoogle() {
       setAuthError(''); setBusy(true);
       try { await backend.signInGoogle(); }
+      catch (e) { setAuthError(humanizeAuthError(e)); throw e; }
+      finally { setBusy(false); }
+    },
+    async signInApple() {
+      setAuthError(''); setBusy(true);
+      try { await backend.signInApple(); }
       catch (e) { setAuthError(humanizeAuthError(e)); throw e; }
       finally { setBusy(false); }
     },
@@ -1584,7 +1607,7 @@ function GoogleG({ size = 18 }) {
   );
 }
 function Auth({ kind }) {
-  const { signUpEmail, signUpTherapist, signInEmail, signInGoogle, resetPassword, loadDemo, loadDemoTherapist, busy, authError, clearAuthError, fbReady } = useStore();
+  const { signUpEmail, signUpTherapist, signInEmail, signInGoogle, signInApple, resetPassword, loadDemo, loadDemoTherapist, busy, authError, clearAuthError, fbReady } = useStore();
   const [name, setName] = useState('');
   const [clinic, setClinic] = useState('');
   const [email, setEmail] = useState('');
@@ -1617,6 +1640,12 @@ function Auth({ kind }) {
     if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim() }; }
     else stashCode();
     try { await signInGoogle(); } catch (e) { window.__btsTherapistSignup = null; }
+  };
+  const apple = async () => {
+    setLocalErr('');
+    if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim() }; }
+    else stashCode();
+    try { await signInApple(); } catch (e) { window.__btsTherapistSignup = null; }
   };
 
   const err = localErr || authError;
@@ -1657,6 +1686,12 @@ function Auth({ kind }) {
 
           {fbReady && (
             <>
+              {isNative() && (
+                <button onClick={apple} disabled={busy} style={{ width:'100%', height:'var(--control-h-lg, 52px)', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:9, background:'#000', color:'#fff', border:'none', borderRadius:'var(--radius-md)', fontFamily:'var(--font-sans)', fontWeight:600, fontSize:'var(--text-base)', cursor:'pointer', marginBottom:12, opacity: busy ? 0.6 : 1 }}>
+                  <svg width="15" height="18" viewBox="0 0 14 17" fill="#fff" aria-hidden="true"><path d="M11.7 9.06c-.02-1.86 1.52-2.75 1.59-2.8-.87-1.27-2.22-1.44-2.7-1.46-1.15-.12-2.24.68-2.82.68-.58 0-1.48-.66-2.43-.64-1.25.02-2.4.73-3.05 1.85-1.3 2.26-.33 5.6.93 7.43.62.9 1.36 1.9 2.33 1.86.94-.04 1.29-.6 2.42-.6 1.13 0 1.45.6 2.43.58 1-.02 1.64-.91 2.25-1.81.71-1.04 1-2.05 1.02-2.1-.02-.01-1.96-.75-1.98-2.99zM9.86 3.6c.51-.62.86-1.49.76-2.35-.74.03-1.63.49-2.16 1.11-.47.55-.89 1.43-.78 2.27.82.07 1.67-.42 2.18-1.03z"/></svg>
+                  {isSignin ? 'Sign in with Apple' : 'Continue with Apple'}
+                </button>
+              )}
               <Button variant="secondary" size="lg" full disabled={busy} onClick={google} iconLeft={<GoogleG size={18}/>}>
                 {isSignin ? 'Sign in with Google' : 'Continue with Google'}
               </Button>
