@@ -31,6 +31,12 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Beyond the Sidelines uses the camera so you can add a photo to your recovery journal.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Beyond the Sidelines lets you add a photo from your photo library to your recovery journal.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Beyond the Sidelines can save photos you add to your recovery journal.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

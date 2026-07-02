@@ -508,6 +508,13 @@ html.native .player-top{ padding-top:calc(18px + env(safe-area-inset-top)); }
 html.native .player-foot{ padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
 html.native .drawer{ padding-top:env(safe-area-inset-top); }
 html.native .modal-overlay{ padding-top:calc(24px + env(safe-area-inset-top)); padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
+/* Sign-in / onboarding: clear the notch so the Back button is tappable, and top-align
+   so the screen scrolls naturally instead of jumping when centered under the keyboard. */
+html.native .auth-main{ align-items:flex-start; overflow-y:auto;
+  padding-top:calc(env(safe-area-inset-top) + 20px); padding-bottom:calc(env(safe-area-inset-bottom) + 24px); }
+html.native .auth-wrap{ min-height:100dvh; }
+/* Guarantee top-bar controls are comfortably tappable (min 44px hit target). */
+html.native .avatar-btn, html.native .icon-btn{ min-width:44px; min-height:44px; }
 
 /* Phone layout: the top nav becomes a real bottom tab bar you reach with your thumb.
    Applies on the native app AND on any phone-width browser. */

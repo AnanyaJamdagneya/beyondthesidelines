@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Sidelines" />
-<link rel="stylesheet" href="styles.css?v=8" />
+<link rel="stylesheet" href="styles.css?v=9" />
 <!-- Vercel Web Analytics (visitors + page views). Static-site method: just load Vercel's script.
      Only on the live website — skipped inside the native app, where /_vercel/ doesn't exist. -->
 <script>
@@ -1645,13 +1645,13 @@ function Auth({ kind }) {
     setLocalErr('');
     if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim() }; }
     else stashCode();
-    try { await signInGoogle(); } catch (e) { window.__btsTherapistSignup = null; }
+    try { await signInGoogle(); } catch (e) { window.__btsTherapistSignup = null; setLocalErr((e && (e.message || e.code)) || 'Google sign-in did not complete. Please try again.'); }
   };
   const apple = async () => {
     setLocalErr('');
     if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim() }; }
     else stashCode();
-    try { await signInApple(); } catch (e) { window.__btsTherapistSignup = null; }
+    try { await signInApple(); } catch (e) { window.__btsTherapistSignup = null; setLocalErr((e && (e.message || e.code)) || 'Apple sign-in did not complete. Please try again.'); }
   };
 
   const err = localErr || authError;
