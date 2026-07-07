@@ -62,6 +62,7 @@ DEPENDENCIES:
   - "CapacitorFirebaseAuthentication (from `../../node_modules/@capacitor-firebase/authentication`)"
   - "CapacitorLocalNotifications (from `../../node_modules/@capacitor/local-notifications`)"
   - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
+  - FirebaseCore
 
 SPEC REPOS:
   trunk:
@@ -103,6 +104,6 @@ SPEC CHECKSUMS:
   GTMSessionFetcher: fc75fc972958dceedee61cb662ae1da7a83a91cf
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
 
-PODFILE CHECKSUM: d60b6f8e9d4f71c94237cd64e36bfc1786ee3407
+PODFILE CHECKSUM: dea7e2208250e50f0582b1eeac0148f911a6d2bf
 
 COCOAPODS: 1.16.2

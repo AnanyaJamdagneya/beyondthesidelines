@@ -4117,8 +4117,8 @@ function App() {
     if (route === '/signup') return <Auth kind="signup" />;
     if (route === '/join') return <Auth kind="join" />;
     if (route === '/pt-signup') return <Auth kind="therapist" />;
-    // The phone app opens straight into sign-in (the marketing landing page is for the website).
-    return isNative() ? <Auth kind="login" /> : <Landing />;
+    // Open to the landing page everywhere, so both patients and therapists can pick their path.
+    return <Landing />;
   }
   // Therapists only ever see their dashboard.
   if (account.role === 'therapist') return <TherapistDashboard />;
