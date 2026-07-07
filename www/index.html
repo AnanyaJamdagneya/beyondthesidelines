@@ -1093,6 +1093,13 @@ function StoreProvider({ children }) {
     togglePrize(id) { patch((a) => ({ ...a, prizes: (a.prizes || []).map((p) => p.id === id ? { ...p, done: !p.done } : p) })); },
     removePrize(id) { patch((a) => ({ ...a, prizes: (a.prizes || []).filter((p) => p.id !== id) })); },
     updateProfile(p) { patch((a) => ({ ...a, profile: { ...a.profile, ...p } })); },
+    // Set the display name shown across the app (so it never falls back to "You").
+    setDisplayName(name) { const nm = (name || '').trim(); if (nm) patch((a) => ({ ...a, name: nm })); },
+    // Mark recovery complete and switch the whole app into mental-wellness mode,
+    // pre-loading breathing, grounding, gratitude, and a mindful walk.
+    switchToMentalMode() { patch((a) => ({ ...a, mode: 'self', centerCode: null, center: null, real: false,
+      profile: { ...(a.profile || {}), track: 'mental', injuryKey: 'mgeneral', injuryLabel: 'Mental wellness', side: '', constraints: [], phase: 'Taking care of my mind', startISO: todayISO() },
+      plan: (AREA_PLANS.mgeneral || []).slice(), milestones: mkMilestones('mgeneral'), graduated: [] })); },
     setReminder(time) { patch((a) => ({ ...a, reminderTime: time })); },
     // Multiple reminder times (e.g. for exercises done several times a day).
     setReminders(times) { const clean = Array.from(new Set((times || []).filter(Boolean))).sort(); patch((a) => ({ ...a, reminderTimes: clean, reminderTime: clean[0] || '' })); },
@@ -1757,12 +1764,13 @@ function Auth({ kind }) {
  *  ONBOARDING
  * ===================================================================== */
 function Onboarding() {
-  const { account, completeOnboarding } = useStore();
+  const { account, completeOnboarding, setDisplayName } = useStore();
   const joinCode = window.__btsJoinCode || null;
-  const firstName = (account.name || 'there').split(' ')[0];
   const startMode = account.mode || (joinCode ? 'center' : 'self');
 
   const [step, setStep] = useState(0);
+  const [name, setName] = useState(account.name || '');
+  const firstName = (name || account.name || 'there').trim().split(' ')[0];
   const [track, setTrack] = useState('physical');
   const [injuryKey, setInjuryKey] = useState('knee');
   const [detail, setDetail] = useState('');
@@ -1804,6 +1812,7 @@ function Onboarding() {
     };
     const goalObjs = goals.map((t, i) => ({ id: 'g' + i + Date.now(), text: t, done: false }));
     const center = mode === 'center' ? (DEMO_CENTERS[code.toUpperCase()] || 'Your PT center') : null;
+    setDisplayName(name);
     completeOnboarding(profile, goalObjs, { mode, center, code: code.toUpperCase() }, milestones);
     window.__btsJoinCode = null;
     go('/today');
@@ -1820,12 +1829,13 @@ function Onboarding() {
           {step === 0 && (
             <div>
               <Logo variant="mark" size={48} style={{ marginBottom:20 }} />
-              <h1 className="ob-title">Welcome, {firstName}.</h1>
+              <h1 className="ob-title">Welcome{firstName && firstName !== 'there' ? `, ${firstName}` : ''}.</h1>
               <p className="ob-sub">Let’s set up your recovery space. A few quick questions so today’s page fits where you actually are, your injury, what you can’t do yet, and what you’re working toward.</p>
+              <Input label="What should we call you?" iconLeft={<Icon name="user" size={16}/>} placeholder="First name is fine" value={name} onChange={(e)=>setName(e.target.value)} style={{ marginBottom:14 }} />
               <Card variant="soft" style={{ marginBottom:8 }}>
                 <div className="row" style={{ gap:12 }}><Icon name="lock" size={18} style={{ color:'var(--brand)' }} /><span style={{ fontSize:'var(--text-sm)', color:'var(--text-body)' }}>This takes about a minute, and you can change any of it later.</span></div>
               </Card>
-              <div className="ob-foot"><span/><Button variant="primary" size="lg" onClick={next} iconRight={<Icon name="arrow-right" size={18}/>}>Let’s begin</Button></div>
+              <div className="ob-foot"><span/><Button variant="primary" size="lg" disabled={!name.trim()} onClick={() => { setDisplayName(name); next(); }} iconRight={<Icon name="arrow-right" size={18}/>}>Let’s begin</Button></div>
             </div>
           )}
           {step === 1 && (
@@ -2239,27 +2249,18 @@ function MusicControls() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1 }} onClick={() => setOpen(false)} />
           <div className="menu" style={{ position: 'absolute', top: 46, right: 0, left: 'auto', zIndex: 2, minWidth: 270, maxWidth: '90vw' }}>
-            <div className="menu-head"><div style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Music for your session</div><div className="muted" style={{ fontSize: 'var(--text-xs)' }}>Bring your own from Spotify or Apple Music, it plays right here while you move.</div></div>
+            <div className="menu-head"><div style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Music for your session</div><div className="muted" style={{ fontSize: 'var(--text-xs)' }}>Bring your own from Spotify or Apple Music, or a track from your phone.</div></div>
 
             <button className="menu-item" onClick={() => openService(MUSIC_LINKS.spotify)} style={{ gap: 12 }}>
               <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#1DB954', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flex: '0 0 auto' }}><Icon name="music" size={15} /></span>
-              <span className="col" style={{ gap: 1, alignItems: 'flex-start' }}><span style={{ fontWeight: 600, color: 'var(--text-strong)' }}>Open Spotify</span><span className="muted" style={{ fontSize: '11px' }}>Pick a playlist, then paste it below</span></span>
+              <span className="col" style={{ gap: 1, alignItems: 'flex-start' }}><span style={{ fontWeight: 600, color: 'var(--text-strong)' }}>Open Spotify</span><span className="muted" style={{ fontSize: '11px' }}>Play your music alongside</span></span>
               <Icon name="arrow-right" size={15} style={{ marginLeft: 'auto', color: 'var(--text-subtle)' }} />
             </button>
             <button className="menu-item" onClick={() => openService(MUSIC_LINKS.apple)} style={{ gap: 12 }}>
               <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#FA2B56,#FB5C74)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flex: '0 0 auto' }}><Icon name="music" size={15} /></span>
-              <span className="col" style={{ gap: 1, alignItems: 'flex-start' }}><span style={{ fontWeight: 600, color: 'var(--text-strong)' }}>Open Apple Music</span><span className="muted" style={{ fontSize: '11px' }}>Pick a playlist, then paste it below</span></span>
+              <span className="col" style={{ gap: 1, alignItems: 'flex-start' }}><span style={{ fontWeight: 600, color: 'var(--text-strong)' }}>Open Apple Music</span><span className="muted" style={{ fontSize: '11px' }}>Play your music alongside</span></span>
               <Icon name="arrow-right" size={15} style={{ marginLeft: 'auto', color: 'var(--text-subtle)' }} />
             </button>
-
-            <div style={{ ...sectionLabel, borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 10 }}>Paste a link to play here</div>
-            <div style={{ padding: '4px 12px 10px' }}>
-              <Input placeholder="Spotify or Apple Music link" value={linkInput} onChange={(e) => { setLinkInput(e.target.value); setLinkErr(''); }} onKeyDown={(e) => { if (e.key === 'Enter') playLink(); }} />
-              <Button variant="primary" size="sm" onClick={playLink} iconLeft={<Icon name="play" size={15} />} style={{ width: '100%', marginTop: 8 }}>Play in my session</Button>
-              {linkErr && <div style={{ color: 'var(--danger)', fontSize: '11px', marginTop: 6 }}>{linkErr}</div>}
-              {embed && <div className="row" style={{ gap: 6, marginTop: 8, fontSize: '11px', color: 'var(--secondary)', fontWeight: 600 }}><Icon name="check" size={13} /> Now playing{embed.kind === 'spotify' ? ' from Spotify' : ' from Apple Music'}</div>}
-              <div className="muted" style={{ fontSize: '11px', marginTop: 8, lineHeight: 1.4 }}>In Spotify or Apple Music, tap Share → Copy Link. Signed in plays the full track, otherwise a short preview.</div>
-            </div>
 
             <label className="menu-item" style={{ cursor: 'pointer', borderTop: '1px solid var(--border)' }}>
               <Icon name="play" size={16} /> {mode === 'file' ? `Playing: ${fileName}` : 'Play a track from my device'}
@@ -2271,12 +2272,6 @@ function MusicControls() {
             )}
           </div>
         </>
-      )}
-      {embed && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 305, background: 'var(--surface)', borderTop: '1px solid var(--border)', boxShadow: 'var(--shadow-xl)', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <iframe title="Music" src={embed.src} style={{ border: 0, borderRadius: 12, flex: 1, height: embed.height }} allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture" loading="lazy" />
-          <button className="icon-btn" title="Stop music" onClick={() => { setEmbed(null); setMode('off'); }}><Icon name="x" size={18} /></button>
-        </div>
       )}
     </div>
   );
@@ -3177,8 +3172,9 @@ function RoadBack({ milestones, onUpdate, injuryLabel, ownerName, editable = tru
   );
 }
 function Journey() {
-  const { account, markNotesRead, toggleGoal, careNotes, addPrize, togglePrize, removePrize, updateMilestones, ptPatient } = useStore();
+  const { account, markNotesRead, toggleGoal, careNotes, addPrize, togglePrize, removePrize, updateMilestones, ptPatient, switchToMentalMode } = useStore();
   const mental = isMental(account);
+  const [recoveredOpen, setRecoveredOpen] = useState(false);
   const { journal } = account;
   const roadMilestones = (ptPatient && ptPatient.milestones) ? ptPatient.milestones : (account.milestones || []);
   const graduated = (ptPatient && ptPatient.graduated) ? ptPatient.graduated : (account.graduated || []);
@@ -3222,6 +3218,29 @@ function Journey() {
         </div>
 
         <RoadBack milestones={roadMilestones} onUpdate={updateMilestones} injuryLabel={account.profile && account.profile.injuryLabel} mental={mental} />
+
+        {!mental && (
+          <Card variant="soft" className="center" padding="clamp(24px,5vw,36px)">
+            <div style={{ fontSize:34, marginBottom:6 }}>🎉</div>
+            <h3 style={{ fontFamily:'var(--font-display)', fontWeight:800, color:'var(--text-strong)', fontSize:'var(--text-xl)', margin:'0 0 6px' }}>Feeling recovered?</h3>
+            <p className="muted" style={{ margin:'0 0 16px', maxWidth:'34ch', marginInline:'auto' }}>When your body is back, your recovery isn’t over, it just changes shape. Celebrate the milestone and keep going for your mind.</p>
+            <Button variant="primary" size="lg" onClick={() => { celebrate(); setRecoveredOpen(true); }} iconLeft={<Icon name="check" size={18}/>}>I recovered</Button>
+          </Card>
+        )}
+
+        {recoveredOpen && (
+          <Modal onClose={() => setRecoveredOpen(false)}>
+            <div className="center" style={{ padding:'4px 4px 8px' }}>
+              <div style={{ fontSize:40, marginBottom:8 }}>🎉</div>
+              <h2 style={{ fontFamily:'var(--font-display)', fontWeight:800, color:'var(--text-strong)', fontSize:'var(--text-2xl)', margin:'0 0 8px' }}>You did it{account.name ? `, ${account.name.split(' ')[0]}` : ''}.</h2>
+              <p className="muted" style={{ margin:'0 0 20px', lineHeight:1.6 }}>Recovering physically is huge. Recovery is never only physical though. Want to switch to mental wellness mode, so the app now supports your mind with breathing, grounding, journaling, and calmer daily check-ins?</p>
+              <div className="col" style={{ gap:10 }}>
+                <Button variant="primary" size="lg" full onClick={() => { setRecoveredOpen(false); switchToMentalMode(); go('/today'); }} iconLeft={<Icon name="leaf" size={18}/>}>Yes, switch to mental wellness</Button>
+                <Button variant="ghost" size="lg" full onClick={() => setRecoveredOpen(false)}>Not right now</Button>
+              </div>
+            </div>
+          </Modal>
+        )}
 
         {(sessionsLogged > 0 || graduated.length > 0 || activeExercises > 0) && (
           <Card>
@@ -3429,7 +3448,7 @@ function EditText({ value, onSave, placeholder }) {
   return <Input value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={() => { if (v.trim() !== (value || '')) onSave(v.trim()); }} />;
 }
 function Profile() {
-  const { account, deleteMyData, signOut, addGoal, toggleGoal, removeGoal, updateProfile, connectCenter, disconnectCenter, setReminder, setReminders } = useStore();
+  const { account, deleteMyData, signOut, addGoal, toggleGoal, removeGoal, updateProfile, connectCenter, disconnectCenter, setReminder, setReminders, setDisplayName } = useStore();
   const [goalInput, setGoalInput] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
@@ -3445,6 +3464,11 @@ function Profile() {
     <AppShell active="profile">
       <div className="shell shell-narrow">
         <div className="greeting"><span className="r-eyebrow">Profile</span><h2 className="greet-hello" style={{ marginTop:8 }}>{account.name || 'Your account'}</h2><p className="greet-line">{account.mode === 'center' ? `Connected to ${account.center}` : 'Recovering on your own'}</p></div>
+
+        <Card>
+          <div className="card-eyebrow" style={{ marginBottom:14 }}><Icon name="user" size={14}/> Your name</div>
+          <EditText value={account.name} onSave={(v) => setDisplayName(v)} placeholder="What should we call you?" />
+        </Card>
 
         <Card>
           <div className="card-eyebrow" style={{ marginBottom:14 }}><Icon name="activity" size={14}/> Your recovery</div>
