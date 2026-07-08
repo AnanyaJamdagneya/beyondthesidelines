@@ -1704,6 +1704,9 @@ function Auth({ kind }) {
                   {isSignin ? 'Sign in with Apple' : 'Continue with Apple'}
                 </button>
               )}
+              <Button variant="secondary" size="lg" full disabled={busy} onClick={google} iconLeft={<GoogleG size={18}/>}>
+                {isSignin ? 'Sign in with Google' : 'Continue with Google'}
+              </Button>
               <div className="row" style={{ gap:12, margin:'18px 0' }}>
                 <span style={{ flex:1, height:1, background:'var(--border)' }} />
                 <span className="muted" style={{ fontSize:'var(--text-xs)', fontWeight:600 }}>or with email</span>
