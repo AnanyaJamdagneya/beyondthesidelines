@@ -1704,9 +1704,6 @@ function Auth({ kind }) {
                   {isSignin ? 'Sign in with Apple' : 'Continue with Apple'}
                 </button>
               )}
-              <Button variant="secondary" size="lg" full disabled={busy} onClick={google} iconLeft={<GoogleG size={18}/>}>
-                {isSignin ? 'Sign in with Google' : 'Continue with Google'}
-              </Button>
               <div className="row" style={{ gap:12, margin:'18px 0' }}>
                 <span style={{ flex:1, height:1, background:'var(--border)' }} />
                 <span className="muted" style={{ fontSize:'var(--text-xs)', fontWeight:600 }}>or with email</span>
@@ -4120,6 +4117,32 @@ function LegalPage({ doc }) {
     </div>
   );
 }
+// Full-screen, app-style welcome for the phone (no top bar; clears the status bar).
+function NativeLanding() {
+  const primaryBtn = { width:'100%', height:56, border:'none', borderRadius:'var(--radius-pill)', background:'#fff', color:'var(--apricot-700)', fontFamily:'var(--font-sans)', fontWeight:800, fontSize:'var(--text-lg)', cursor:'pointer' };
+  const ghostBtn = { width:'100%', height:56, borderRadius:'var(--radius-pill)', background:'rgba(255,255,255,0.14)', color:'#fff', border:'1.5px solid rgba(255,255,255,0.6)', fontFamily:'var(--font-sans)', fontWeight:700, fontSize:'var(--text-base)', cursor:'pointer' };
+  return (
+    <div style={{ minHeight:'100dvh', display:'flex', flexDirection:'column', background:'var(--grad-sunrise)', color:'#fff',
+      paddingTop:'calc(env(safe-area-inset-top) + 44px)', paddingBottom:'calc(env(safe-area-inset-bottom) + 26px)', paddingLeft:28, paddingRight:28, overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center', gap:18 }}>
+        <Logo variant="mark" tone="white" size={52} />
+        <h1 style={{ color:'#fff', fontFamily:'var(--font-display)', fontWeight:800, fontSize:'clamp(2.5rem,10vw,3.4rem)', lineHeight:1.04, letterSpacing:'-0.02em', margin:0, maxWidth:'13ch' }}>Recovery that stays with you.</h1>
+        <p style={{ fontSize:'var(--text-lg)', opacity:0.94, fontWeight:500, maxWidth:'24ch', lineHeight:1.4, margin:0 }}>Your exercises, your check-ins, and a private space for your body and your mind.</p>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <button onClick={() => go('/signup')} style={primaryBtn}>Get started</button>
+        <button onClick={() => go('/join')} style={ghostBtn}>I have a clinic code</button>
+        <div className="center" style={{ marginTop:8, fontSize:'var(--text-base)' }}>
+          <span style={{ opacity:0.92 }}>Already have an account? </span>
+          <span onClick={() => go('/login')} style={{ fontWeight:800, textDecoration:'underline', cursor:'pointer' }}>Sign in</span>
+        </div>
+        <div className="center" style={{ marginTop:2 }}>
+          <span onClick={() => go('/pt-signup')} style={{ fontSize:'var(--text-sm)', opacity:0.85, textDecoration:'underline', cursor:'pointer' }}>I’m a physical therapist</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 function App() {
   const { account, session, authReady } = useStore();
   const route = useRoute();
@@ -4140,8 +4163,8 @@ function App() {
     if (route === '/signup') return <Auth kind="signup" />;
     if (route === '/join') return <Auth kind="join" />;
     if (route === '/pt-signup') return <Auth kind="therapist" />;
-    // Open to the landing page everywhere, so both patients and therapists can pick their path.
-    return <Landing />;
+    // Phone gets the simple app-style welcome; the web keeps the full marketing landing.
+    return isNative() ? <NativeLanding /> : <Landing />;
   }
   // Therapists only ever see their dashboard.
   if (account.role === 'therapist') return <TherapistDashboard />;
