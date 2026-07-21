@@ -11,13 +11,10 @@ install! 'cocoapods', :disable_input_output_paths => true
 def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-  # Include the 'Google' subspec so Google sign-in is actually compiled in
-  # (adds the -DRGCFA_INCLUDE_GOOGLE flag + the GoogleSignIn library).
+  # 'Google' subspec compiles in Google sign-in (GoogleSignIn + -DRGCFA_INCLUDE_GOOGLE).
   pod 'CapacitorFirebaseAuthentication', :path => '../../node_modules/@capacitor-firebase/authentication', :subspecs => ['Google']
   pod 'CapacitorLocalNotifications', :path => '../../node_modules/@capacitor/local-notifications'
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
-  # Needed so AppDelegate can `import FirebaseCore` and call FirebaseApp.configure()
-  pod 'FirebaseCore'
 end
 
 target 'App' do
