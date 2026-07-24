@@ -11,8 +11,14 @@ install! 'cocoapods', :disable_input_output_paths => true
 def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-  # 'Google' subspec compiles in Google sign-in (GoogleSignIn + -DRGCFA_INCLUDE_GOOGLE).
-  pod 'CapacitorFirebaseAuthentication', :path => '../../node_modules/@capacitor-firebase/authentication', :subspecs => ['Google']
+  # Google sign-in: do NOT add `:subspecs => ['Google']` here. With a local (:path) pod under
+  # use_frameworks!, a subspec selection silently fails to LINK the pod into the app, so the
+  # whole native FirebaseAuthentication plugin never registers (Google AND Apple both fail
+  # with "no-google"/"no-apple"). Google is instead baked into the plugin's root podspec
+  # (node_modules/@capacitor-firebase/authentication/CapacitorFirebaseAuthentication.podspec:
+  # `s.dependency 'GoogleSignIn'` + `-DRGCFA_INCLUDE_GOOGLE`). Re-apply that podspec edit if
+  # you ever run `npm install` (it does not survive a fresh node_modules).
+  pod 'CapacitorFirebaseAuthentication', :path => '../../node_modules/@capacitor-firebase/authentication'
   pod 'CapacitorLocalNotifications', :path => '../../node_modules/@capacitor/local-notifications'
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
 end
