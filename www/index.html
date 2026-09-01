@@ -560,15 +560,24 @@ function emptyAccount({ name, email, mode } = {}) {
     onboarded: false, profile: null, plan: [], journal: {}, sessions: {}, progress: {},
     careNotes: [], pinned: [], seenNotes: [], goals: [], graduated: [], reportPref: 'concerns', createdAt: Date.now() };
 }
-// A friendly, shareable connection code for a therapist, e.g. "SUNNY-PT-4821".
-function genCode(clinic) {
-  // Clinic-name prefix + 5 random chars (no ambiguous 0/O/1/I) = ~33M combos per prefix,
-  // so two therapists at the same clinic — or clinics with the same name — get different codes.
+// The therapy disciplines a clinic can practice. Drives the connection-code prefix and the
+// labels patients see ("your physical therapist" vs "your occupational therapist").
+const DISCIPLINES = {
+  pt:   { code:'PT',    clinician:'physical therapist',     noun:'physical therapy',                center:'physical therapy clinic' },
+  ot:   { code:'OT',    clinician:'occupational therapist', noun:'occupational therapy',            center:'occupational therapy clinic' },
+  both: { code:'REHAB', clinician:'therapist',              noun:'physical & occupational therapy', center:'therapy clinic' },
+};
+const disc = (d) => DISCIPLINES[d] || DISCIPLINES.pt;
+
+// A friendly, shareable connection code for a clinic, e.g. "RIVER-PT-4821" or "SUNNY-OT-9K3PZ".
+function genCode(clinic, discipline) {
+  // Clinic-name prefix + discipline + 5 random chars (no ambiguous 0/O/1/I) so two clinicians
+  // at the same clinic — or clinics with the same name — always get different codes.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const base = String(clinic || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
   let rand = '';
   for (let i = 0; i < 5; i++) rand += chars[Math.floor(Math.random() * chars.length)];
-  return (base || 'CLINIC') + '-' + rand;
+  return (base ? base + '-' : '') + disc(discipline).code + '-' + rand;
 }
 function humanizeAuthError(e) {
   const c = (e && e.code) || '';
@@ -764,17 +773,18 @@ function StoreProvider({ children }) {
       // New therapist signup: convert the fresh account and create the connection doc.
       if (!data && window.__btsTherapistSignup) {
         const clinic = window.__btsTherapistSignup.clinic || ((user.name || acct.name) ? `${(user.name || acct.name)}` : 'Your clinic');
+        const discipline = window.__btsTherapistSignup.discipline || 'pt';
         window.__btsTherapistSignup = null;
         // Guarantee the code isn't already taken (regenerate on the rare collision).
-        let code = genCode(clinic);
+        let code = genCode(clinic, discipline);
         for (let i = 0; i < 6; i++) {
           let existing = null;
           try { existing = await backend.loadLink(code); } catch (e) {}
           if (!existing) break;
-          code = genCode(clinic);
+          code = genCode(clinic, discipline);
         }
-        acct = { ...acct, role: 'therapist', clinic, code, onboarded: true };
-        try { await backend.saveLink(code, { code, therapistUid: user.uid, therapistName: user.name || acct.name, clinic, createdAt: Date.now(), patients: {} }); } catch (e) {}
+        acct = { ...acct, role: 'therapist', clinic, discipline, code, onboarded: true };
+        try { await backend.saveLink(code, { code, therapistUid: user.uid, therapistName: user.name || acct.name, clinic, discipline, createdAt: Date.now(), patients: {} }); } catch (e) {}
         try { await backend.saveData(user.uid, acct); } catch (e) {}
       }
       if (!mounted) return;
@@ -842,8 +852,8 @@ function StoreProvider({ children }) {
       catch (e) { setAuthError(humanizeAuthError(e)); throw e; }
       finally { setBusy(false); }
     },
-    async signUpTherapist(name, clinic, email, pw) {
-      window.__btsTherapistSignup = { clinic };
+    async signUpTherapist(name, clinic, discipline, email, pw) {
+      window.__btsTherapistSignup = { clinic, discipline: discipline || 'pt' };
       window.__btsSignupName = (name || '').trim();
       setAuthError(''); setBusy(true);
       try { await backend.signUpEmail(name, email, pw); }
@@ -1571,7 +1581,7 @@ function Landing() {
         <div className="signup-card center">
           <Logo variant="mark" size={40} style={{ marginBottom:18 }} />
           <h3 style={{ fontFamily:'var(--font-display)', fontSize:'var(--text-xl)', margin:'0 0 8px' }}>It’s free, and it’s yours</h3>
-          <p className="muted" style={{ margin:'0 0 22px' }}>Sign up on your own, or connect to your PT center with a code.</p>
+          <p className="muted" style={{ margin:'0 0 22px' }}>Sign up on your own, or connect to your PT or OT clinic with a code.</p>
           <div className="col" style={{ gap:12 }}>
             <Button variant="primary" size="lg" full onClick={() => go('/signup')} iconRight={<Icon name="arrow-right" size={18}/>}>Start on my own</Button>
             <Button variant="secondary" size="lg" full onClick={() => go('/join')} iconLeft={<Icon name="key" size={18}/>}>I have a center code</Button>
@@ -1580,7 +1590,7 @@ function Landing() {
           <div style={{ marginTop:22, paddingTop:20, borderTop:'1px solid var(--border)' }}>
             <div className="row" style={{ gap:10, justifyContent:'center', flexWrap:'wrap' }}>
               <Icon name="building" size={18} style={{ color:'var(--tertiary)' }} />
-              <span className="muted" style={{ fontSize:'var(--text-sm)' }}>Are you a physical therapist?</span>
+              <span className="muted" style={{ fontSize:'var(--text-sm)' }}>Run a PT or OT clinic?</span>
               <button onClick={() => go('/pt-signup')} className="auth-link" style={{ background:'none', border:'none', fontSize:'var(--text-sm)', fontWeight:600 }}>Set up your clinic →</button>
             </div>
           </div>
@@ -1622,6 +1632,7 @@ function Auth({ kind }) {
   const { signUpEmail, signUpTherapist, signInEmail, signInGoogle, signInApple, resetPassword, loadDemo, loadDemoTherapist, busy, authError, clearAuthError, fbReady } = useStore();
   const [name, setName] = useState('');
   const [clinic, setClinic] = useState('');
+  const [discipline, setDiscipline] = useState('pt');
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [code, setCode] = useState('');
@@ -1642,20 +1653,20 @@ function Auth({ kind }) {
       if (!name.trim()) { setLocalErr('What should we call you?'); return; }
       if (isTherapist && !clinic.trim()) { setLocalErr('What’s your clinic or practice called?'); return; }
       if (!email.trim()) { setLocalErr('An email keeps your account safe.'); return; }
-      if (isTherapist) { await signUpTherapist(name.trim(), clinic.trim(), email, pw); return; }
+      if (isTherapist) { await signUpTherapist(name.trim(), clinic.trim(), discipline, email, pw); return; }
       stashCode();
       await signUpEmail(name.trim(), email, pw);
     } catch (e) { /* store already set a friendly authError */ }
   };
   const google = async () => {
     setLocalErr('');
-    if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim() }; }
+    if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim(), discipline }; }
     else stashCode();
     try { await signInGoogle(); } catch (e) { window.__btsTherapistSignup = null; setLocalErr((e && (e.message || e.code)) || 'Google sign-in did not complete. Please try again.'); }
   };
   const apple = async () => {
     setLocalErr('');
-    if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim() }; }
+    if (isTherapist) { if (!clinic.trim()) { setLocalErr('Add your clinic name first.'); return; } window.__btsTherapistSignup = { clinic: clinic.trim(), discipline }; }
     else stashCode();
     try { await signInApple(); } catch (e) { window.__btsTherapistSignup = null; setLocalErr((e && (e.message || e.code)) || 'Apple sign-in did not complete. Please try again.'); }
   };
@@ -1663,7 +1674,7 @@ function Auth({ kind }) {
   const err = localErr || authError;
   const title = isSignin ? 'Welcome back' : isCenter ? 'Connect to your center' : isTherapist ? 'Set up your clinic' : 'Start your journal';
   const sub = isSignin ? 'Pick up right where you left off.'
-    : isCenter ? 'Enter the code from your physical therapy center to link up. Your reports go to them; your journal stays yours.'
+    : isCenter ? 'Enter the code from your physical or occupational therapy clinic to link up. Your reports go to them; your journal stays yours.'
     : isTherapist ? 'Create your therapist account. You’ll get a code to share with patients, assign their exercises and send notes, all in one place.'
     : 'A daily check-in for your body and your feelings. Free, always.';
   const cta = isSignin ? 'Sign in' : isCenter ? 'Connect and continue' : isTherapist ? 'Create clinic account' : 'Create my account';
@@ -1719,6 +1730,22 @@ function Auth({ kind }) {
             {isCenter && <Input label="Center code" iconLeft={<Icon name="key" size={16}/>} placeholder="e.g. RIVER-2026" value={code} onChange={(e)=>setCode(e.target.value)} hint="Demo codes: RIVER-2026, SUMMIT-PT, BAYAREA, or type any code." />}
             {!isSignin && <Input label={isTherapist ? 'Your name' : 'Your name'} iconLeft={<Icon name="user" size={16}/>} placeholder={isTherapist ? 'e.g. Dr. Priya Anand' : 'First name is fine'} value={name} onChange={(e)=>setName(e.target.value)} />}
             {isTherapist && <Input label="Clinic or practice name" iconLeft={<Icon name="building" size={16}/>} placeholder="e.g. Riverside Physical Therapy" value={clinic} onChange={(e)=>setClinic(e.target.value)} />}
+            {isTherapist && (
+              <div>
+                <label style={{ display:'block', fontSize:'var(--text-sm)', fontWeight:600, marginBottom:8, color:'var(--text-strong)' }}>What kind of clinic?</label>
+                <div className="row" style={{ gap:8 }}>
+                  {[['pt','Physical therapy'],['ot','Occupational therapy'],['both','Both']].map(([val,lbl]) => (
+                    <button key={val} type="button" onClick={()=>setDiscipline(val)} aria-pressed={discipline===val}
+                      style={{ flex:1, padding:'11px 8px', borderRadius:'var(--radius-md)', cursor:'pointer', fontFamily:'var(--font-sans)', fontSize:'var(--text-sm)', fontWeight:600, lineHeight:1.25, textAlign:'center', transition:'all .12s ease',
+                        border: discipline===val ? '1.5px solid var(--brand)' : '1.5px solid var(--border)',
+                        background: discipline===val ? 'var(--apricot-100)' : 'transparent',
+                        color: discipline===val ? 'var(--apricot-700)' : 'var(--text)' }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <Input label="Email" type="email" iconLeft={<Icon name="mail" size={16}/>} placeholder="you@email.com" value={email} onChange={(e)=>setEmail(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') submit(); }} />
             <Input label="Password" type="password" iconLeft={<Icon name="lock" size={16}/>} placeholder={isSignin ? '••••••••' : 'At least 6 characters'} value={pw} onChange={(e)=>setPw(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') submit(); }} />
             {isSignin && <button onClick={doReset} className="auth-link" style={{ background:'none', border:'none', alignSelf:'flex-end', fontSize:'var(--text-sm)', marginTop:'-4px' }}>Forgot password?</button>}
@@ -1921,7 +1948,7 @@ function Onboarding() {
                 <Input placeholder="Add a checkpoint (e.g. jog a mile)" value={msInput} onChange={(e)=>setMsInput(e.target.value)} onKeyDown={(e)=>{ if (e.key==='Enter') addMs(); }} />
                 <Button variant="secondary" onClick={addMs} iconLeft={<Icon name="plus" size={16}/>}>Add</Button>
               </div>
-              <p className="muted" style={{ margin:'14px 0 0', fontSize:'var(--text-xs)' }}>You’ll tick these off on your Journey as you reach them. {mode === 'center' ? 'Your PT can adjust them too.' : ''}</p>
+              <p className="muted" style={{ margin:'14px 0 0', fontSize:'var(--text-xs)' }}>You’ll tick these off on your Journey as you reach them. {mode === 'center' ? 'Your clinic can adjust them too.' : ''}</p>
               <div className="ob-foot"><Button variant="ghost" onClick={back} iconLeft={<Icon name="arrow-left" size={16}/>}>Back</Button><Button variant="primary" size="lg" onClick={next} iconRight={<Icon name="arrow-right" size={18}/>}>Continue</Button></div>
             </div>
           )}
@@ -3920,7 +3947,7 @@ function TherapistDashboard() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="row" style={{ gap: 12 }}><Logo size={26} /><Badge tone="sky" dot>Therapist</Badge></div>
+        <div className="row" style={{ gap: 12 }}><Logo size={26} /><Badge tone="sky" dot>{account.discipline === 'ot' ? 'Occupational therapy' : account.discipline === 'both' ? 'PT + OT' : 'Physical therapy'}</Badge></div>
         <div className="topbar-right">
           <span className="muted" style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{account.clinic}</span>
           <Button variant="ghost" size="sm" onClick={() => signOut()} iconLeft={<Icon name="log-out" size={16} />}>Sign out</Button>
@@ -4140,7 +4167,7 @@ function NativeLanding() {
           <span onClick={() => go('/login')} style={{ fontWeight:800, textDecoration:'underline', cursor:'pointer' }}>Sign in</span>
         </div>
         <div className="center" style={{ marginTop:2 }}>
-          <span onClick={() => go('/pt-signup')} style={{ fontSize:'var(--text-sm)', opacity:0.85, textDecoration:'underline', cursor:'pointer' }}>I’m a physical therapist</span>
+          <span onClick={() => go('/pt-signup')} style={{ fontSize:'var(--text-sm)', opacity:0.85, textDecoration:'underline', cursor:'pointer' }}>I run a PT or OT clinic</span>
         </div>
       </div>
     </div>
